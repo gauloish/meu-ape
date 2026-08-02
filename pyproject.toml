@@ -12,6 +12,7 @@ dependencies = [
     "matplotlib>=3.11.1",
     "missingno>=0.5.2",
     "numpy>=2.5.1",
+    "optuna>=4.9.0",
     "pandas>=3.0.5",
     "scikit-learn>=1.9.0",
     "scipy>=1.18.0",
