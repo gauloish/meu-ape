@@ -3,7 +3,20 @@ import logging
 import numpy as np
 import pandas as pd
 
+from typing import List
+
 logger = logging.getLogger(__name__)
+
+UNUSED_FEATURES: List[str] = [
+    "id",
+    "url",
+    "moeda",
+    "cidade",
+    "estado",
+    "pais",
+    "fotos_urls",
+    "descricao_completa",
+]
 
 class DataCleaner:
     def __init__(self):
@@ -39,21 +52,10 @@ class DataCleaner:
         Returns:
             pd.DataFrame: Dataset with the not used features droped
         """
-        features = [
-            "id",
-            "url",
-            "moeda",
-            "cidade",
-            "estado",
-            "pais",
-            "fotos_urls",
-            "descricao_completa",
-        ]
-
-        logger.info(f"Removing unused features from dataset (features {features}).")
+        logger.info(f"Removing unused features from dataset (features {UNUSED_FEATURES}).")
 
         return df.drop(
-            labels=features,
+            labels=UNUSED_FEATURES,
             axis="columns",
             errors="ignore"
         )
