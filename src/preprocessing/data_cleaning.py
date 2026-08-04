@@ -1,29 +1,14 @@
-import logging
-
 import numpy as np
 import pandas as pd
 
-from typing import List
+from logging import Logger
 
-logger = logging.getLogger(__name__)
+from .constants import UNUSED_FEATURES
 
-UNUSED_FEATURES: List[str] = [
-    "id",
-    "url",
-    "moeda",
-    "cidade",
-    "estado",
-    "pais",
-    "fotos_urls",
-    "descricao_completa",
-]
 
 class DataCleaner:
-    def __init__(self):
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format="[%(asctime)s] %(levelname)s: %(message)s"
-        )
+    def __init__(self, logger: Logger):
+        self.logger = logger
 
     def _drop_duplicates(self, df: pd.DataFrame) -> pd.DataFrame:
         """Drop duplicated registers in dataset
@@ -34,7 +19,7 @@ class DataCleaner:
         Returns:
             pd.DataFrame: Dataset with duplicated register dropped
         """
-        logger.info("Removing duplicated registers from dataset.")
+        self.logger.info("Removing duplicated registers from dataset.")
 
         return df.drop_duplicates(
             keep="first",
@@ -51,7 +36,7 @@ class DataCleaner:
         Returns:
             pd.DataFrame: Dataset with the not used features droped
         """
-        logger.info(f"Removing unused features from dataset (features {UNUSED_FEATURES}).")
+        self.logger.info(f"Removing unused features from dataset (features {UNUSED_FEATURES}).")
 
         return df.drop(
             labels=UNUSED_FEATURES,
@@ -68,7 +53,7 @@ class DataCleaner:
         Returns:
             pd.DataFrame: Dataset with registers without prices droped
         """
-        logger.info("Removing register with missing real state pricing.")
+        self.logger.info("Removing register with missing real state pricing.")
 
         return df.dropna(
             subset="preco"
@@ -83,7 +68,7 @@ class DataCleaner:
         Returns:
             pd.DataFrame: Dataset with the classes renamed
         """
-        logger.info("Renaming classes of categorical features.")
+        self.logger.info("Renaming classes of categorical features.")
 
         return df.assign(
             tipo_imovel=lambda x: x["tipo_imovel"].map({
@@ -125,7 +110,7 @@ class DataCleaner:
         total_count = notna_mask.sum()
         error_percentage = 100*correct_count / total_count
 
-        logger.info(f"Percentage of valid data between title and extracted data: {error_percentage:.2f}%.")
+        self.logger.info(f"Percentage of valid data between title and extracted data: {error_percentage:.2f}%.")
 
         return df
 
@@ -140,7 +125,7 @@ class DataCleaner:
         """
         return df.convert_dtypes()
 
-    def cleaning_dataset(self, df: pd.DataFrame) -> pd.DataFrame:
+    def __call__(self, df: pd.DataFrame) -> pd.DataFrame:
         """Cleaning dataset, removing duplicated registers,
         unused features, renaming classes, validating data
         and converting dtypes
@@ -151,9 +136,9 @@ class DataCleaner:
         Returns:
             pd.DataFrame: Cleaned dataset
         """
-        logger.info("Initializing cleaning step of the dataset.")
+        self.logger.info("Initializing cleaning step in the dataset.")
 
-        return (df
+        df = (df
             .pipe(self._drop_duplicates)
             .pipe(self._drop_features)
             .pipe(self._drop_missing)
@@ -161,3 +146,7 @@ class DataCleaner:
             .pipe(self._validate_data)
             .pipe(self._convert_dtypes)
         )
+
+        self.logger.info("Finalizing cleaning step in the dataset.")
+
+        return df
