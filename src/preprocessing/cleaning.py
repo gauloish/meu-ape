@@ -41,7 +41,6 @@ class DataCleaner:
             ignore_index=True,
         )
 
-
     def _drop_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Drop feature that does not is available in inference
         step or that is not relevant for prediction
@@ -59,7 +58,21 @@ class DataCleaner:
             axis="columns",
             errors="ignore"
         )
+    
+    def _drop_missing(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Drop registers with missing real state pricing
 
+        Args:
+            df (pd.DataFrame): Dataset
+
+        Returns:
+            pd.DataFrame: Dataset with registers without prices droped
+        """
+        logger.info("Removing register with missing real state pricing.")
+
+        return df.dropna(
+            subset="preco"
+        )
 
     def _rename_classes(self, df: pd.DataFrame) -> pd.DataFrame:
         """Rename classes of some categorical features
@@ -79,7 +92,6 @@ class DataCleaner:
                 "Place": "outro",
             })
         )
-
 
     def _validate_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Show in logs the percentage of valid data between title data and
@@ -117,7 +129,6 @@ class DataCleaner:
 
         return df
 
-
     def _convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
         """Convert dtypes of the dataset
 
@@ -128,7 +139,6 @@ class DataCleaner:
             pd.DataFrame: Dataset with the dtypes converted
         """
         return df.convert_dtypes()
-
 
     def cleaning_dataset(self, df: pd.DataFrame) -> pd.DataFrame:
         """Cleaning dataset, removing duplicated registers,
@@ -146,6 +156,7 @@ class DataCleaner:
         return (df
             .pipe(self._drop_duplicates)
             .pipe(self._drop_features)
+            .pipe(self._drop_missing)
             .pipe(self._rename_classes)
             .pipe(self._validate_data)
             .pipe(self._convert_dtypes)
