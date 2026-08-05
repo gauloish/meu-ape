@@ -12,5 +12,5 @@ class GeoencodingEngine:
 
         self.engine = create_engine(f"sqlite:///{self.db_path}")
 
-    def get_engine(self) -> Engine:
+    def __call__(self) -> Engine:
         return self.engine

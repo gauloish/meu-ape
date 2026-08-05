@@ -7,7 +7,7 @@ from .engine import GeoencodingEngine
 class GeoencodingSession:
     def __init__(self, engine: GeoencodingEngine):
         self.session = sessionmaker(
-            bind=engine.get_engine(),
+            bind=engine(),
             autoflush=False,
             autocommit=False,
         )
