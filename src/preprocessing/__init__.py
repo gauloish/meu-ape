@@ -31,11 +31,15 @@ from .constants import (
 )
 
 from .data_cleaning import (
-    DataCleaner
+    DataCleaner,
 )
 
 from .feature_extraction import (
-    FeatureExtractor
+    FeatureExtractor,
+)
+
+from .geocoding_enrichment import (
+    GeocodingEnricher,
 )
 
 
@@ -76,4 +80,7 @@ __all__ = [
 
     # feature_extractor.py
     "FeatureExtractor",
+
+    # geocoding.py
+    "GeocodingEnricher",
 ]
