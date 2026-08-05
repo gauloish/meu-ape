@@ -1,10 +1,7 @@
 from sqlalchemy import Float, String
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import DeclarativeBase
 
-
-class Base(DeclarativeBase):
-    pass
+from .base import Base
 
 
 class GeocodingCache(Base):
