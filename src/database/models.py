@@ -17,4 +17,4 @@ class GeocodingCache(Base):
     place_id: Mapped[str] = mapped_column(String)
 
     def __repr__(self) -> str:
-        return f"GeoencodingCache(address={self.address}, latitude={self.latitude}, longitude={self.longitude})"
+        return f"GeocodingCache(address={self.address}, latitude={self.latitude}, longitude={self.longitude})"

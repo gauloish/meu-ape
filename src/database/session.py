@@ -1,11 +1,11 @@
 from sqlalchemy import Engine
 from sqlalchemy.orm import sessionmaker
 
-from .engine import GeoencodingEngine
+from .engine import GeocodingEngine
 
 
-class GeoencodingSession:
-    def __init__(self, engine: GeoencodingEngine):
+class GeocodingSession:
+    def __init__(self, engine: GeocodingEngine):
         self.session = sessionmaker(
             bind=engine(),
             autoflush=False,
