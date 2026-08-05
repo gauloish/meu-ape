@@ -1,13 +1,14 @@
 from .base import Base
-from .engine import GeocodingEngine
-from .session import GeocodingSession
+from .engine import engine
+from .session import Session
 from .models import GeocodingCache
 from .repositories import GeocodingRepository
 
+
 __all__ = [
     "Base",
-    "GeocodingEngine",
-    "GeocodingSession",
+    "engine",
+    "Session",
     "GeocodingCache",
     "GeocodingRepository",
 ]

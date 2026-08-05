@@ -5,17 +5,20 @@ from sqlalchemy import create_engine, Engine
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
-class GeocodingEngine:
-    def __init__(self):
-        self.db_path = PROJECT_ROOT / "data" / "cache" / "geocoding.db"
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+def get_database_path(project_root: Path) -> Path:
+    """Get database base path for geocoding cache
 
-        self.engine = create_engine(f"sqlite:///{self.db_path}")
+    Args:
+        project_root (Path): Path of the project root
 
-    def __call__(self) -> Engine:
-        """Return the geocoding database engine
+    Returns:
+        Path: Path of the database for geocoding cache
+    """
+    db_path = PROJECT_ROOT / "data" / "cache" / "geocoding.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        Returns:
-            Engine: Geocoding database engine
-        """
-        return self.engine
+    return db_path
+
+
+db_path = get_database_path(PROJECT_ROOT)
+engine = create_engine(f"sqlite:///{db_path}")
