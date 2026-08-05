@@ -13,4 +13,9 @@ class GeocodingEngine:
         self.engine = create_engine(f"sqlite:///{self.db_path}")
 
     def __call__(self) -> Engine:
+        """Return the geocoding database engine
+
+        Returns:
+            Engine: Geocoding database engine
+        """
         return self.engine

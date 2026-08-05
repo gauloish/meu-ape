@@ -1,5 +1,5 @@
 from sqlalchemy import Engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from .engine import GeocodingEngine
 
@@ -12,5 +12,10 @@ class GeocodingSession:
             autocommit=False,
         )
 
-    def __call__(self):
+    def __call__(self) -> Session:
+        """Return geocoding database session
+
+        Returns:
+            Session: Geocoding database session
+        """
         return self.session()
