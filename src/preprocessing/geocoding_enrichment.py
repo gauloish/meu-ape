@@ -112,8 +112,7 @@ class GeocodingEnricher:
 
         return (df
             .apply(self._create_geocoded_features, axis="columns")
-            # TODO: remove `rua` and `bairro`
-            .drop("endereco", axis="columns")
+            .drop(["endereco", "rua", "bairro"], axis="columns")
         )
 
     def _convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
