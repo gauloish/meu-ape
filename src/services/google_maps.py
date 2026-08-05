@@ -1,22 +1,26 @@
 import os
 import googlemaps
 
+from logging import Logger
+
 from pydantic import BaseModel
 
 
 class GeocodingResult(BaseModel):
-    formatted_address: str
-    place_id: str
-    latitude: float
-    longitude: float
+    ok: bool = False
+    formatted_address: str = ""
+    place_id: str = ""
+    latitude: float = 0.0
+    longitude: float = 0.0
 
 
 class GoogleMapsClient:
-    def __init__(self, api_key: str | None):
+    def __init__(self, api_key: str | None, logger: Logger):
         if api_key is None:
             raise ValueError(f"Chave de API do Google Maps não fornecida.")
 
         self.client = googlemaps.Client(key=api_key)
+        self.logger = logger
 
     def request(self, address: str) -> GeocodingResult:
         """Geocode a given address returning the formatted address, google place ID,
@@ -41,11 +45,16 @@ class GoogleMapsClient:
             
             latitude = result["geometry"]["location"]["lat"]
             longitude = result["geometry"]["location"]["lng"]
+
+            self.logger.info(f"Address(\"{address}\") successfully geocoded.")
             
         else:
-            raise Exception(f"Nenhum resultado encontrado em \"{address}\"")
+            self.logger.error(f"Address(\"{address}\") failed to geocode.")
+
+            return GeocodingResult()
 
         return GeocodingResult(
+            ok=True,
             formatted_address=formatted_address,
             place_id=place_id,
             latitude=latitude,
