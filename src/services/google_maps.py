@@ -12,7 +12,10 @@ class GeocodingResult(BaseModel):
 
 
 class GoogleMapsClient:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str | None):
+        if api_key is None:
+            raise ValueError(f"Chave de API do Google Maps não fornecida.")
+
         self.client = googlemaps.Client(key=api_key)
 
     def geocode(self, address: str) -> GeocodingResult:
@@ -40,7 +43,7 @@ class GoogleMapsClient:
             longitude = result["geometry"]["location"]["lng"]
             
         else:
-            raise Exception(f"Nenhum resultado encontrado em '{address}'")
+            raise Exception(f"Nenhum resultado encontrado em \"{address}\"")
 
         return GeocodingResult(
             formatted_address=formatted_address,
