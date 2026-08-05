@@ -4,7 +4,8 @@ from .google_maps import (
 )
 
 from .geocoder import (
-    Geocoder
+    Geocoder,
+    GeocodingFeatures,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
 
     # geocoder.py
     "Geocoder",
+    "GeocodingFeatures",
 ]
