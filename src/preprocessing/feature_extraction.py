@@ -97,6 +97,17 @@ class FeatureExtractor:
 
         return df.drop("titulo", axis="columns")
 
+    def _convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Convert dtypes of the dataset
+
+        Args:
+            df (pd.DataFrame): Dataset
+
+        Returns:
+            pd.DataFrame: Dataset with the dtypes converted
+        """
+        return df.convert_dtypes()
+
     def __call__(self, df: pd.DataFrame) -> pd.DataFrame:
         """Extract amenities features from `comodidades` and real state
         classes from `titulo`
@@ -112,6 +123,7 @@ class FeatureExtractor:
         df = (df
             .pipe(self._extract_amenities_features)
             .pipe(self._extract_real_state_classes)
+            .pipe(self._convert_dtypes)
         )
 
         self.logger.info("Finalizing feature extraction step in the dataset.")
