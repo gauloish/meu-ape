@@ -18,7 +18,7 @@ class GoogleMapsClient:
 
         self.client = googlemaps.Client(key=api_key)
 
-    def geocode(self, address: str) -> GeocodingResult:
+    def request(self, address: str) -> GeocodingResult:
         """Geocode a given address returning the formatted address, google place ID,
         and the latitude and longitude coordinates
 
