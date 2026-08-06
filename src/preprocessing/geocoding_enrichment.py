@@ -9,10 +9,16 @@ from ..services.geocoder import (
     Geocoder,
 )
 
-GEOCODING_FEATURES_DEFAULT = GeocodingFeatures(
+GEOCODING_FEATURES_DEFAULT: GeocodingFeatures = GeocodingFeatures(
     latitude=-16.6670204,
     longitude=-49.2521725,
 )
+
+MIN_LATITUDE: float = -16.8589667
+MAX_LATITUDE: float = -16.5114847
+
+MIN_LONGITUDE: float = -49.5440777
+MAX_LONGITUDE: float = -49.0375257
 
 
 def _check_string_has_content(register: pd.Series) -> bool:
@@ -115,6 +121,22 @@ class GeocodingEnricher:
             .drop(["endereco", "rua", "bairro"], axis="columns")
         )
 
+    def _clip_out_of_bounds_samples(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Clip samples with address out of bound of Goiânia
+
+        Args:
+            df (pd.DataFrame): Dataset
+
+        Returns:
+            pd.DataFrame: Dataset updated with the out of bound samples clipped
+        """
+        self.logger.info("Cliping samples out of Goiânia bounds.")
+
+        mask_latitude = ((MIN_LATITUDE <= df["latitude"]) & (df["latitude"] <= MAX_LATITUDE))
+        mask_longitude = ((MIN_LONGITUDE <= df["longitude"]) & (df["longitude"] <= MAX_LONGITUDE))
+
+        return df[mask_latitude & mask_longitude].reset_index(drop=True)
+
     def _convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
         """Convert dtypes of the dataset
 
@@ -140,6 +162,7 @@ class GeocodingEnricher:
 
         df = (df
             .pipe(self._extract_geocoded_features)
+            .pipe(self._clip_out_of_bounds_samples)
             .pipe(self._convert_dtypes)
         )
 
