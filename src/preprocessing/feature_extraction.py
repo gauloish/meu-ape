@@ -54,7 +54,7 @@ class FeatureExtractor:
         self.logger.info("Extracting amenities features.")
 
         for feature, amenities in FEATURES_MAPPING.items():
-            self.logger.info(f"Extracting amenities feature for '{feature}'.")
+            self.logger.info(f"Extracting amenities feature for `{feature}`.")
 
             df[feature] = self._extract_amenities_feature(df, amenities)
 
