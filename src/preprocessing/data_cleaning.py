@@ -55,8 +55,9 @@ class DataCleaner:
         """
         self.logger.info("Removing register with missing real state pricing.")
 
-        return df.dropna(
-            subset="preco"
+        return (df
+            .dropna(subset="preco")
+            .reset_index(drop=True)
         )
 
     def _rename_classes(self, df: pd.DataFrame) -> pd.DataFrame:
