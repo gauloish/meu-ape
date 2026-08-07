@@ -10,6 +10,7 @@ dependencies = [
     "curl-cffi>=0.16.0",
     "python-dotenv>=1.0.0",
     "fastparquet>=2026.5.0",
+    "feature-engine>=1.9.4",
     "folium>=0.20.0",
     "geopy>=2.5.0",
     "googlemaps>=4.10.0",
