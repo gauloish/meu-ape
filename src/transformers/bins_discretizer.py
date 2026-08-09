@@ -1,7 +1,6 @@
 import pandas as pd
-import numpy as np
 
-from typing import Any, List, Tuple, Dict
+from typing import Any, List, Tuple
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted

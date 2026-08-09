@@ -10,26 +10,25 @@ from sklearn.utils.validation import check_is_fitted
 class RatioTransformer(TransformerMixin, BaseEstimator):
     def __init__(
         self,
-        pairs: List[Tuple[str, str]],
-        sep: str = "_por_",
+        features: List[str],
+        suffix: str = "_log"
     ) -> None:
-        """Initialize ratio transformer to create ratio
-        features from pair of continuous features.
+        """Initialize log transformers that create features with log
+        (natural base) transformation from given features.
 
         Args:
-            pairs (List[Tuple[str, str]]): A list of pairs of features
-            to generate the features ratios.
-            sep (str, optional): Separator of the name of the new
-            ratio features. Defaults to "_por_".
+            features (List[str]): List of features to transform.
+            suffix (str, optional): Suffix to name of the
+            new features. Defaults to "_log".
         """
-        self.pairs: List[Tuple[str, str]] = pairs
-        self.sep: str = sep
+        self.features: List[str] = features
+        self.suffix: str = suffix
 
     def fit(self, X: pd.DataFrame, y=None):
         """Fit the data.
 
         Args:
-            X (pd.DataFrame): Original dataset.
+            X (pd.DataFrame): Original dataset
             y (None, optional): Ignored. Defaults to None.
 
         Returns:
@@ -40,32 +39,33 @@ class RatioTransformer(TransformerMixin, BaseEstimator):
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Create the new ratio features calculating
-        ratios from given features pairs.
+        """Create new features with log transformation.
 
         Args:
             X (pd.DataFrame): Original dataset.
 
         Returns:
-            pd.DataFrame: Updated dataset with the
-            new category features.
+            pd.DataFrame: Updated dataset with new features
+            with the log transformation.
         """
         check_is_fitted(self)
         self._validate_input(X)
 
         X = X.copy()
 
-        for feature_a, feature_b in self.pairs:
-            name = f"{feature_a}{self.sep}{feature_b}"
+        for feature in self.features:
+            name = f"{feature}{self.suffix}"
+            mask = (X[feature].notna() & (X[feature] > -1.0))
 
-            X[name] = X[feature_a] / X[feature_b].replace(0, np.nan)
+            X[name] = np.nan
+            X.loc[mask, name] = np.log1p(X.loc[mask, name])
 
         return X
 
     def _validate_input(self, X: pd.DataFrame | Any) -> None:
         """Check if the input is valid, that is, if the input is 
         a pandas DataFrame and if it have the features in given
-        pairs.
+        features.
 
         Args:
             X (pd.DataFrame | Any): Original dataset.
@@ -82,10 +82,9 @@ class RatioTransformer(TransformerMixin, BaseEstimator):
 
         missing = []
 
-        for features in self.pairs:
-            for feature in features:
-                if feature not in X.columns:
-                    missing.append(feature)
+        for feature in self.features:
+            if feature not in X.columns:
+                missing.append(feature)
 
         if len(missing) != 0:
             raise ValueError(
