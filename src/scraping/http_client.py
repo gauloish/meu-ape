@@ -30,7 +30,7 @@ class SyncHttpClient:
     Handles request header rotation and exponential backoff for HTTP 429 status codes.
     """
 
-    MAX_RETRIES = 8
+    MAX_RETRIES = 5
 
     def __init__(self) -> None:
         """Initialize the synchronous HTTP client session."""
@@ -45,8 +45,8 @@ class SyncHttpClient:
         Returns:
             Raw response HTML content as string, or empty string on failure.
         """
-        for attempt in range(self.MAX_RETRIES):
-            if attempt > 0:
+        for attempt in range(1, self.MAX_RETRIES + 1):
+            if attempt > 1:
                 self._session = self._build_session()
 
             headers = {**DEFAULT_HEADERS, "User-Agent": random.choice(USER_AGENTS)}
@@ -63,16 +63,23 @@ class SyncHttpClient:
                 if resp.status_code == 404:
                     return ""
                 if resp.status_code == 429:
-                    wait = min(120.0, 15.0 * (1.5 ** attempt) + random.uniform(2.0, 5.0))
-                    logger.warning("HTTP 429 for %s - waiting %.1fs (attempt %d).", url, wait, attempt + 1)
+                    wait = min(60.0, 10.0 * (1.5 ** (attempt - 1)) + random.uniform(1.0, 3.0))
+                    logger.warning("HTTP 429 for %s - waiting %.1fs (attempt %d/%d).", url, wait, attempt, self.MAX_RETRIES)
                     time.sleep(wait)
                     continue
-                logger.warning("HTTP status %d for %s.", resp.status_code, url)
-                return ""
+
+                logger.warning("HTTP status %d for %s (attempt %d/%d).", resp.status_code, url, attempt, self.MAX_RETRIES)
+                if attempt < self.MAX_RETRIES:
+                    time.sleep(2.0)
+                else:
+                    return ""
 
             except Exception as exc:
-                logger.warning("Connection error for %s (attempt %d): %s", url, attempt + 1, exc)
-                time.sleep(3)
+                logger.warning("Connection error for %s (attempt %d/%d): %s", url, attempt, self.MAX_RETRIES, exc)
+                if attempt < self.MAX_RETRIES:
+                    time.sleep(2.0)
+                else:
+                    return ""
 
         return ""
 
@@ -88,6 +95,8 @@ class AsyncHttpClient:
 
     Supports context manager usage to ensure session resource cleanup.
     """
+
+    MAX_RETRIES = 5
 
     def __init__(self, semaphore: asyncio.Semaphore) -> None:
         """Initialize the asynchronous HTTP client.
@@ -118,30 +127,37 @@ class AsyncHttpClient:
         Returns:
             Raw response HTML content as string, or empty string on failure.
         """
-        attempt = 0
-
         async with self.semaphore:
-            await asyncio.sleep(random.uniform(2.5, 4.5))
+            await asyncio.sleep(random.uniform(1.0, 2.5))
 
-            while True:
+            for attempt in range(1, self.MAX_RETRIES + 1):
                 headers = {**DEFAULT_HEADERS, "User-Agent": random.choice(USER_AGENTS)}
 
                 try:
                     assert self._session is not None, "AsyncHttpClient must be used as async context manager"
-                    resp = await self._session.get(url, headers=headers, timeout=20)
+                    resp = await self._session.get(url, headers=headers, timeout=15)
 
                     if resp.status_code == 200:
                         return resp.text
                     if resp.status_code == 404:
                         return ""
                     if resp.status_code == 429:
-                        attempt += 1
-                        wait = min(120.0, 15.0 * (1.5 ** min(attempt - 1, 6)) + random.uniform(2.0, 5.0))
-                        logger.warning("[%s] HTTP 429 (attempt #%d). Waiting %.1fs.", label, attempt, wait)
+                        wait = min(60.0, 10.0 * (1.5 ** (attempt - 1)) + random.uniform(1.0, 3.0))
+                        logger.warning("[%s] HTTP 429 (attempt #%d/%d). Waiting %.1fs.", label, attempt, self.MAX_RETRIES, wait)
                         await asyncio.sleep(wait)
                         continue
-                    await asyncio.sleep(2)
+
+                    logger.warning("[%s] HTTP status %d for %s (attempt #%d/%d).", label, resp.status_code, url, attempt, self.MAX_RETRIES)
+                    if attempt < self.MAX_RETRIES:
+                        await asyncio.sleep(2.0)
+                    else:
+                        return ""
 
                 except Exception as exc:
-                    logger.warning("[%s] Connection error (%s). Retrying.", label, str(exc)[:50])
-                    await asyncio.sleep(1.5)
+                    logger.warning("[%s] Connection error (attempt #%d/%d): %s", label, attempt, self.MAX_RETRIES, str(exc)[:60])
+                    if attempt < self.MAX_RETRIES:
+                        await asyncio.sleep(2.0)
+                    else:
+                        return ""
+
+            return ""
