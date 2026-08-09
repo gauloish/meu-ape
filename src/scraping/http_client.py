@@ -1,7 +1,7 @@
 """HTTP client abstraction for the Zap Imóveis scraping pipeline.
 
-Provides synchronous and asynchronous clients featuring browser impersonation (curl_cffi),
-User-Agent rotation, rate-limiting backoff mechanisms, and automatic session rotation.
+Provides synchronous and asynchronous clients featuring native browser impersonation (curl_cffi)
+and rate-limiting backoff mechanisms.
 """
 
 import asyncio
@@ -19,7 +19,7 @@ except ImportError:
 
 import requests as stdlib_requests
 
-from src.scraping.config import DEFAULT_HEADERS, USER_AGENTS
+from src.scraping.config import DEFAULT_HEADERS
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class SyncHttpClient:
     """Thread-safe synchronous HTTP client with TLS fingerprint impersonation.
 
-    Handles request header rotation and exponential backoff for HTTP 429 status codes.
+    Handles automatic exponential backoff for HTTP 429 status codes.
     """
 
     MAX_RETRIES = 3
@@ -49,14 +49,11 @@ class SyncHttpClient:
             if attempt > 1:
                 self._session = self._build_session()
 
-            headers = {**DEFAULT_HEADERS, "User-Agent": random.choice(USER_AGENTS)}
-
             try:
-                use_cffi = HAS_CURL_CFFI and attempt < 3
-                if use_cffi:
-                    resp = self._session.get(url, headers=headers, timeout=12)
+                if HAS_CURL_CFFI:
+                    resp = self._session.get(url, timeout=12)
                 else:
-                    resp = stdlib_requests.get(url, headers=headers, timeout=12)
+                    resp = stdlib_requests.get(url, headers=DEFAULT_HEADERS, timeout=12)
 
                 if resp.status_code == 200:
                     return resp.text
@@ -98,12 +95,11 @@ class SyncHttpClient:
 class AsyncHttpClient:
     """Asynchronous HTTP client supporting concurrency control via Semaphore.
 
-    Supports context manager usage to ensure session resource cleanup.
-    Includes periodic session rotation and automatic recovery on HTTP 403 Forbidden.
+    Uses native Chrome 124 browser impersonation via curl_cffi with session rotation.
     """
 
     MAX_RETRIES = 3
-    ROTATE_SESSION_EVERY = 8
+    ROTATE_SESSION_EVERY = 10
 
     def __init__(self, semaphore: asyncio.Semaphore) -> None:
         """Initialize the asynchronous HTTP client.
@@ -155,14 +151,12 @@ class AsyncHttpClient:
             if self._request_count % self.ROTATE_SESSION_EVERY == 0:
                 await self._reset_session()
 
-            await asyncio.sleep(random.uniform(1.5, 3.0))
+            await asyncio.sleep(random.uniform(1.2, 2.5))
 
             for attempt in range(1, self.MAX_RETRIES + 1):
-                headers = {**DEFAULT_HEADERS, "User-Agent": random.choice(USER_AGENTS)}
-
                 try:
                     assert self._session is not None, "AsyncHttpClient must be used as async context manager"
-                    resp = await self._session.get(url, headers=headers, timeout=15)
+                    resp = await self._session.get(url, timeout=15)
 
                     if resp.status_code == 200:
                         return resp.text
