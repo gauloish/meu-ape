@@ -33,4 +33,5 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          uv run meu-ape daily-scrape --concurrency 1
+          uv run python main.py daily-scrape --concurrency 1
+
