@@ -60,12 +60,17 @@ class SyncHttpClient:
 
                 if resp.status_code == 200:
                     return resp.text
-                if resp.status_code == 404:
+                if resp.status_code in (404, 410):
                     return ""
                 if resp.status_code == 429:
                     wait = min(60.0, 10.0 * (1.5 ** (attempt - 1)) + random.uniform(1.0, 3.0))
                     logger.warning("HTTP 429 for %s - waiting %.1fs (attempt %d/%d).", url, wait, attempt, self.MAX_RETRIES)
                     time.sleep(wait)
+                    continue
+
+                if resp.status_code == 403:
+                    logger.warning("HTTP 403 Forbidden for %s (attempt %d/%d) - resetting session.", url, attempt, self.MAX_RETRIES)
+                    time.sleep(random.uniform(2.0, 4.0))
                     continue
 
                 logger.warning("HTTP status %d for %s (attempt %d/%d).", resp.status_code, url, attempt, self.MAX_RETRIES)
@@ -94,9 +99,10 @@ class AsyncHttpClient:
     """Asynchronous HTTP client supporting concurrency control via Semaphore.
 
     Supports context manager usage to ensure session resource cleanup.
+    Automatic session recreation is triggered on HTTP 403 Forbidden challenges.
     """
 
-    MAX_RETRIES = 5
+    MAX_RETRIES = 4
 
     def __init__(self, semaphore: asyncio.Semaphore) -> None:
         """Initialize the asynchronous HTTP client.
@@ -106,6 +112,7 @@ class AsyncHttpClient:
         """
         self.semaphore = semaphore
         self._session: Optional[AsyncSession] = None
+        self._lock = asyncio.Lock()
 
     async def __aenter__(self) -> "AsyncHttpClient":
         """Enter the async context manager and instantiate AsyncSession."""
@@ -115,7 +122,20 @@ class AsyncHttpClient:
     async def __aexit__(self, *_) -> None:
         """Exit the async context manager and close active AsyncSession."""
         if self._session:
-            await self._session.close()
+            try:
+                await self._session.close()
+            except Exception:
+                pass
+
+    async def _reset_session(self) -> None:
+        """Close existing session and recreate a fresh AsyncSession."""
+        async with self._lock:
+            if self._session:
+                try:
+                    await self._session.close()
+                except Exception:
+                    pass
+            self._session = AsyncSession(impersonate="chrome124")
 
     async def get(self, url: str, label: str = "") -> str:
         """Fetch content asynchronously from the target URL.
@@ -139,12 +159,17 @@ class AsyncHttpClient:
 
                     if resp.status_code == 200:
                         return resp.text
-                    if resp.status_code == 404:
+                    if resp.status_code in (404, 410):
                         return ""
                     if resp.status_code == 429:
-                        wait = min(60.0, 10.0 * (1.5 ** (attempt - 1)) + random.uniform(1.0, 3.0))
-                        logger.warning("[%s] HTTP 429 (attempt #%d/%d). Waiting %.1fs.", label, attempt, self.MAX_RETRIES, wait)
+                        wait = min(45.0, 8.0 * (1.5 ** (attempt - 1)) + random.uniform(1.0, 3.0))
+                        logger.warning("[%s] HTTP 429 Rate Limit (attempt #%d/%d). Waiting %.1fs.", label, attempt, self.MAX_RETRIES, wait)
                         await asyncio.sleep(wait)
+                        continue
+                    if resp.status_code == 403:
+                        logger.warning("[%s] HTTP 403 Forbidden (attempt #%d/%d). Resetting TLS session.", label, attempt, self.MAX_RETRIES)
+                        await self._reset_session()
+                        await asyncio.sleep(random.uniform(2.5, 4.0))
                         continue
 
                     logger.warning("[%s] HTTP status %d for %s (attempt #%d/%d).", label, resp.status_code, url, attempt, self.MAX_RETRIES)
@@ -156,6 +181,7 @@ class AsyncHttpClient:
                 except Exception as exc:
                     logger.warning("[%s] Connection error (attempt #%d/%d): %s", label, attempt, self.MAX_RETRIES, str(exc)[:60])
                     if attempt < self.MAX_RETRIES:
+                        await self._reset_session()
                         await asyncio.sleep(2.0)
                     else:
                         return ""
