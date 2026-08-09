@@ -5,6 +5,7 @@ retrieved from Zap Imóveis web pages into normalised dictionary records.
 """
 
 import re
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 
@@ -109,4 +110,7 @@ def parse_item(item: Dict[str, Any]) -> Dict[str, Any]:
         "comodidades": ", ".join(amenities),
         "fotos_urls": _join_photo_urls(item.get("image", [])),
         "descricao_completa": item.get("description"),
+        "data_publicacao": item.get("datePublished"),
+        "data_modificacao": item.get("dateModified"),
+        "scraped_at": datetime.now(timezone.utc).isoformat(),
     }

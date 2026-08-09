@@ -1,0 +1,36 @@
+name: Daily ZAP Imóveis Scrape & Sync
+
+on:
+  schedule:
+    # Run every day at 09:00 UTC (06:00 BRT)
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape-and-sync:
+    name: Daily Scrape & Sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run Daily Scraper Pipeline
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          uv run meu-ape daily-scrape --concurrency 1
