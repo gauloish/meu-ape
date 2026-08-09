@@ -1,7 +1,7 @@
 """HTTP client abstraction for the Zap Imóveis scraping pipeline.
 
-Provides synchronous and asynchronous clients featuring native browser impersonation (curl_cffi)
-and rate-limiting backoff mechanisms.
+Provides synchronous and asynchronous clients featuring browser impersonation (curl_cffi),
+initial session warming (cookie acquisition), and rate-limiting backoff mechanisms.
 """
 
 import asyncio
@@ -19,7 +19,7 @@ except ImportError:
 
 import requests as stdlib_requests
 
-from src.scraping.config import DEFAULT_HEADERS
+from src.scraping.config import BASE_URL, DEFAULT_HEADERS
 
 logger = logging.getLogger(__name__)
 
@@ -95,11 +95,11 @@ class SyncHttpClient:
 class AsyncHttpClient:
     """Asynchronous HTTP client supporting concurrency control via Semaphore.
 
-    Uses native Chrome 124 browser impersonation via curl_cffi with session rotation.
+    Uses native Chrome 124 browser impersonation via curl_cffi with session warming
+    (obtaining valid Cloudflare/navigation cookies on homepage first).
     """
 
     MAX_RETRIES = 3
-    ROTATE_SESSION_EVERY = 10
 
     def __init__(self, semaphore: asyncio.Semaphore) -> None:
         """Initialize the asynchronous HTTP client.
@@ -110,12 +110,12 @@ class AsyncHttpClient:
         self.semaphore = semaphore
         self._session: Optional[AsyncSession] = None
         self._lock = asyncio.Lock()
-        self._request_count = 0
+        self._warmed = False
 
     async def __aenter__(self) -> "AsyncHttpClient":
-        """Enter the async context manager and instantiate AsyncSession."""
+        """Enter the async context manager, instantiate AsyncSession and warm cookies."""
         self._session = AsyncSession(impersonate="chrome124")
-        self._request_count = 0
+        await self._warmup_session()
         return self
 
     async def __aexit__(self, *_) -> None:
@@ -126,8 +126,21 @@ class AsyncHttpClient:
             except Exception:
                 pass
 
+    async def _warmup_session(self) -> None:
+        """Visit homepage to acquire initial navigation cookies and pass Cloudflare checks."""
+        if not self._session:
+            return
+        try:
+            headers = {"Referer": "https://www.google.com/"}
+            resp = await self._session.get(BASE_URL, headers=headers, timeout=15)
+            if resp.status_code == 200:
+                self._warmed = True
+                logger.debug("Session warmed up successfully with %d cookies.", len(self._session.cookies))
+        except Exception as exc:
+            logger.warning("Session warmup failed: %s", exc)
+
     async def _reset_session(self) -> None:
-        """Close existing session and recreate a fresh AsyncSession."""
+        """Close existing session and recreate a fresh warmed AsyncSession."""
         async with self._lock:
             if self._session:
                 try:
@@ -135,6 +148,7 @@ class AsyncHttpClient:
                 except Exception:
                     pass
             self._session = AsyncSession(impersonate="chrome124")
+            await self._warmup_session()
 
     async def get(self, url: str, label: str = "") -> str:
         """Fetch content asynchronously from the target URL.
@@ -147,16 +161,14 @@ class AsyncHttpClient:
             Raw response HTML content as string, or empty string on failure.
         """
         async with self.semaphore:
-            self._request_count += 1
-            if self._request_count % self.ROTATE_SESSION_EVERY == 0:
-                await self._reset_session()
-
-            await asyncio.sleep(random.uniform(1.2, 2.5))
+            await asyncio.sleep(random.uniform(1.2, 2.8))
 
             for attempt in range(1, self.MAX_RETRIES + 1):
+                headers = {"Referer": f"{BASE_URL}/"}
+
                 try:
                     assert self._session is not None, "AsyncHttpClient must be used as async context manager"
-                    resp = await self._session.get(url, timeout=15)
+                    resp = await self._session.get(url, headers=headers, timeout=15)
 
                     if resp.status_code == 200:
                         return resp.text
@@ -168,9 +180,9 @@ class AsyncHttpClient:
                         await asyncio.sleep(wait)
                         continue
                     if resp.status_code == 403:
-                        logger.warning("[%s] HTTP 403 Forbidden (attempt #%d/%d). Resetting session.", label, attempt, self.MAX_RETRIES)
+                        logger.warning("[%s] HTTP 403 Forbidden (attempt #%d/%d). Resetting session with warmup.", label, attempt, self.MAX_RETRIES)
                         await self._reset_session()
-                        await asyncio.sleep(random.uniform(2.0, 3.5))
+                        await asyncio.sleep(random.uniform(2.5, 4.0))
                         continue
 
                     logger.warning("[%s] HTTP status %d for %s (attempt #%d/%d).", label, resp.status_code, url, attempt, self.MAX_RETRIES)
