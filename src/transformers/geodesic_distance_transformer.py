@@ -1,65 +1,128 @@
 import pandas as pd
+import numpy as np
 
-from typing import List, Dict
+from typing import Any, Tuple, Dict
 
-from feature_engine.creation import GeoDistanceFeatures
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.metrics.pairwise import haversine_distances
+from sklearn.utils.validation import check_is_fitted
+
+EARTH_RADIUS_KM: float = 6371.0088
 
 
 class GeodesicDistanceTransformer(TransformerMixin, BaseEstimator):
     def __init__(
         self,
-        places: Dict[str, List[int]],
+        points: Dict[str, Tuple[float, float]],
         lat_feature: str = "latitude",
         lon_feature: str = "longitude",
-        prefix: str = "distancia",
+        prefix: str = "distancia_",
+        suffix: str = "_km",
     ) -> None:
-        """Initialize geodesic distance transformer.
+        """Initialize transformer that create geodesic distance features.
 
         Args:
-            places (Dict[str, List[int]]): Dicionary with places names and its coordinates
-            lat_feature (str, optional): Name of the feature that represents latitude. Defaults to "latitude".
-            lon_feature (str, optional): Name of the feature that represents longitude. Defaults to "longitude".
-            prefix (str, optional): Prefix of the distance feature names. Defaults to "distancia".
+            points (Dict[str, Tuple[float, float]]): Points from the distances will be calculated.
+            lat_feature (str, optional): Name of the latitude feature. Defaults to "latitude".
+            lon_feature (str, optional): Name of the longitude feature. Defaults to "longitude".
+            prefix (str, optional): Prefix of the result distance feature name. Defaults to "distancia_".
+            suffix (str, optional): Suffix of the result distance feature name. Defaults to "_km".
         """
-        self.places: Dict[str, List[int]] = places
+        self.points: Dict[str, Tuple[float, float]] = points
         self.lat_feature: str = lat_feature
         self.lon_feature: str = lon_feature
         self.prefix: str = prefix
-        self.data: pd.DataFrame
+        self.suffix: str = suffix
 
-    def fit(self, X: pd.DataFrame, y=None) -> None:
-        """Calculate the geodesic distances between original feature and the given places.
+    def fit(self, X: pd.DataFrame, y=None):
+        """Fit the data.
 
         Args:
-            X (pd.DataFrame): Original dataset.
-            y (None, optional): Unused. Defaults to None.
+            X (pd.DataFrame): Original dataset
+            y (None, optional): Ignored. Defaults to None.
+
+        Returns:
+            Self: Self
         """
-        self.data = X[[self.lat_feature, self.lon_feature]]
+        self._is_fitted = True
 
-        for place, coordinates in self.places.items():
-            self.data[f"{place}_lat"] = coordinates[0]
-            self.data[f"{place}_lon"] = coordinates[1]
-
-            gdt = GeoDistanceFeatures(
-                lat1="latitude", lon1="longitude",
-                lat2=f"{place}_lat", lon2=f"{place}_lon",
-            )
-
-            result = gdt.fit_transform(self.data)
-
-            self.data[f"{self.prefix}_{place}"] = result["geo_distance"]
+        return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Put the calculated geodesic distances in the dataset.
+        """Calculate the geodesic distance features from `latitude` and
+        `longitude` features.
 
         Args:
             X (pd.DataFrame): Original dataset.
 
         Returns:
-            pd.DataFrame: New dataset with the distance features.
+            pd.DataFrame: Dataset updated with the distance features.
         """
-        for place in self.places.keys():
-            X[f"{self.prefix}_{place}"] = self.data[f"{self.prefix}_{place}"]
-        
+        check_is_fitted(self)
+        self._validate_input(X)
+
+        X = X.copy()
+
+        coordinates = np.radians(
+            X[[self.lat_feature, self.lon_feature]]
+            .to_numpy(dtype=np.float64)
+        )
+
+        mask = np.all(
+            ~np.isnan(coordinates),
+            axis=1
+        )
+
+        coordinates = coordinates[mask]
+
+        for name, (latitude, longitude) in self.points.items():
+            radians = np.radians([[latitude, longitude]])
+
+            distance = (
+                haversine_distances(coordinates, radians).ravel()
+                * EARTH_RADIUS_KM
+            )
+
+            feature_name = f"{self.prefix}{name}{self.suffix}"
+
+            X[feature_name] = np.nan
+            X.loc[mask, feature_name] = distance
+
         return X
+
+    def _validate_input(self, X: pd.DataFrame | Any) -> None:
+        """Check if input is valid, that is, the input is
+        a pandas DataFrame and if has the `latitude` and 
+        `longitude` features.
+
+        Args:
+            X (pd.DataFrame | Any): Original dataset.
+
+        Raises:
+            TypeError: If given data is not a pandas DataFrame.
+            ValueError: If the features `latitude` and `longitude`
+            are missing.
+        """
+        if not isinstance(X, pd.DataFrame):
+            raise TypeError(
+                f"{self.__class__.__name__} expects a pandas.DataFrame, "
+                f"but received a {type(X).__name__}."
+            )
+
+        required = {
+            self.lat_feature,
+            self.lon_feature,
+        }
+
+        missing = required - set(X.columns)
+
+        if missing:
+            raise ValueError(
+                f"Missing features: {sorted(missing)}"
+            )
+
+    def __sklearn_is_fitted__(self):
+        """
+        Check fitted status and return a Boolean value.
+        """
+        return hasattr(self, "_is_fitted") and self._is_fitted
