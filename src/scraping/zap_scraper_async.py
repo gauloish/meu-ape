@@ -10,7 +10,7 @@ import logging
 import random
 from datetime import date
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Set
 
 from bs4 import BeautifulSoup
 from tqdm.asyncio import tqdm_asyncio
