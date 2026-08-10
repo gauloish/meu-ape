@@ -14,28 +14,12 @@ GEOCODING_FEATURES_DEFAULT: GeocodingFeatures = GeocodingFeatures(
     longitude=-49.2521725,
 )
 
-MIN_LATITUDE: float = -16.8589667
-MAX_LATITUDE: float = -16.5114847
+MIN_LATITUDE: float = -16.85
+MAX_LATITUDE: float = -16.55
 
-MIN_LONGITUDE: float = -49.5440777
-MAX_LONGITUDE: float = -49.0375257
+MIN_LONGITUDE: float = -49.45
+MAX_LONGITUDE: float = -49.15
 
-
-def _check_string_has_content(register: pd.Series) -> bool:
-    """Check if string has some content, that is, whether the string
-    is not empty nor NAN.
-
-    Args:
-        register (pd.Series): String to be checked.
-
-    Returns:
-        bool: True if string has content. Otherwise, False.
-    """
-    if isinstance(register, str):
-        if register.strip():
-            return True
-
-    return False
 
 class GeocodingEnricher:
     def __init__(self, logger: Logger):
@@ -53,23 +37,10 @@ class GeocodingEnricher:
         """
         self.logger.info("Generating address feature.")
 
-        mask_rua = df["rua"].map(_check_string_has_content)
-        mask_bairro = df["bairro"].map(_check_string_has_content)
+        rua = df["rua"].fillna("")
+        bairro = df["bairro"].fillna("")
 
-        df.loc[~mask_rua, "rua"] = pd.NA
-        df.loc[~mask_bairro, "bairro"] = pd.NA
-
-        df["endereco"] = pd.NA
-
-        mask_rua_not_bairro = (mask_rua & (~mask_bairro))
-        mask_not_rua_bairro = ((~mask_rua) & mask_bairro)
-        mask_rua_bairro = (mask_rua & mask_bairro)
-
-        df.loc[mask_rua_not_bairro, "endereco"] = df.loc[mask_rua_not_bairro, "rua"]
-        df.loc[mask_not_rua_bairro, "endereco"] = df.loc[mask_not_rua_bairro, "bairro"]
-        df.loc[mask_rua_bairro, "endereco"] = df.loc[mask_rua_bairro, "rua"] + ", " + df.loc[mask_rua_bairro, "bairro"]
-
-        df.loc[df["endereco"].notna(), "endereco"] += ", Goiânia - GO"
+        df["endereco"] = rua + ", " + bairro
 
         return df
 
