@@ -1,13 +1,13 @@
 import pandas as pd
 import numpy as np
 
-from typing import Any, List, Tuple
+from typing import Any, List
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
 
-class RatioTransformer(TransformerMixin, BaseEstimator):
+class LogTransformer(TransformerMixin, BaseEstimator):
     def __init__(
         self,
         features: List[str],
