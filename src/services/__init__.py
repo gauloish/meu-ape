@@ -1,6 +1,6 @@
-from .google_maps import (
+from .maps import (
     GeocodingResult,
-    GoogleMapsClient,
+    MapsClient,
 )
 
 from .geocoder import (
@@ -11,7 +11,7 @@ from .geocoder import (
 __all__ = [
     # google_maps.py
     "GeocodingResult",
-    "GoogleMapsClient",
+    "MapsClient",
 
     # geocoder.py
     "Geocoder",

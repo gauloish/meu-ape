@@ -1,4 +1,3 @@
-import os
 import re
 import unicodedata
 
@@ -8,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from pydantic import BaseModel
 
-from . import GoogleMapsClient
+from . import MapsClient
 
 from ..database import (
     Base,
@@ -30,8 +29,7 @@ class Geocoder:
     def __init__(self, logger: Logger):
         self.logger = logger
 
-        self.client = GoogleMapsClient(
-            api_key=os.getenv("GOOGLE_MAPS_API_KEY"),
+        self.client = MapsClient(
             logger=self.logger,
         )
 
