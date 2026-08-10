@@ -892,15 +892,6 @@ wheels = [
 ]
 
 [[package]]
-name = "googlemaps"
-version = "4.10.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/fe/26/bca4d737a9acea25e94c19940a780bbf0be64a691f7caf3a68467d3a5838/googlemaps-4.10.0.tar.gz", hash = "sha256:3055fcbb1aa262a9159b589b5e6af762b10e80634ae11c59495bd44867e47d88", size = 33056, upload-time = "2023-01-26T16:45:02.501Z" }
-
-[[package]]
 name = "greenlet"
 version = "3.5.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1385,7 +1376,6 @@ dependencies = [
     { name = "feature-engine" },
     { name = "folium" },
     { name = "geopy" },
-    { name = "googlemaps" },
     { name = "httpx" },
     { name = "matplotlib" },
     { name = "missingno" },
@@ -1412,7 +1402,6 @@ requires-dist = [
     { name = "feature-engine", specifier = ">=1.9.4" },
     { name = "folium", specifier = ">=0.20.0" },
     { name = "geopy", specifier = ">=2.5.0" },
-    { name = "googlemaps", specifier = ">=4.10.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "matplotlib", specifier = ">=3.11.1" },
     { name = "missingno", specifier = ">=0.5.2" },

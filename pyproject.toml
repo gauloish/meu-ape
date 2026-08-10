@@ -13,7 +13,6 @@ dependencies = [
     "feature-engine>=1.9.4",
     "folium>=0.20.0",
     "geopy>=2.5.0",
-    "googlemaps>=4.10.0",
     "httpx>=0.28.1",
     "matplotlib>=3.11.1",
     "missingno>=0.5.2",
