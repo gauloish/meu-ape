@@ -1,6 +1,6 @@
 #!/bin/bash
 # ------------------------------------------------------------------------------
-# Script: setup_geocoder.sh
+# Script: setup.sh
 # Objetivo: Baixar, clipar e construir o banco local do Photon para Goiânia.
 # ------------------------------------------------------------------------------
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ------------------------------------------------------------------------------
-# Script: start_geocoder.sh
+# Script: start.sh
 # Objetivo: Iniciar a API local do Photon para geocodificação.
 # ------------------------------------------------------------------------------
 
