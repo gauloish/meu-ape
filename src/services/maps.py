@@ -4,6 +4,8 @@ import logging
 from logging import Logger
 from pydantic import BaseModel
 
+from .utils import check_normalized_substring
+
 URL = f"http://localhost:8080/search"
 
 
@@ -22,47 +24,67 @@ class MapsClient:
     def __init__(self, logger: Logger):
         self.logger = logger
 
-    def _request(self, address: str) -> GeocodingResult:
-        """Geocode a given address returning the formatted address, place ID,
-        and the latitude and longitude coordinates
-
-        Args:
-            address (str): Address to be coded
-
-        Raises:
-            Exception: If geocode does not find the address
-
-        Returns:
-            GeocodingResult: Geocode result with specified fields
-        """
+    def _request(self, street: str, neighborhood: str, address: str) -> GeocodingResult:
         params = {
             "q": address,
             "format": "jsonv2",
             "limit": 1,
+            "addressdetails": 1,
         }
 
         response = requests.get(URL, params=params)
+        fallback_response = GeocodingResult()
 
-        if response and isinstance(response, list):
-            result = response[0]
+        if response.status_code == 200:
+            result = response.json()
+
+            if not isinstance(result, list):
+                return fallback_response
+
+            if len(result) == 0:
+                return fallback_response
+            
+            result = result[0]
 
             formatted_address = result["display_name"]
-            place_id = result["place_id"]
+            address_info = result["address"]
+
+            valid_result = True
+
+            city = address_info.get("city", "")
+            road = address_info.get("road", "")
+            suburb = address_info.get("suburb", "")
+
+            if (city != "") and (not check_normalized_substring(city, "Goiânia")):
+                self.logger.warning(f"1. Address(street=\"{street}\", neighborhood=\"{neighborhood}\", address=\"{road}, {suburb}, {city}\")")
+                valid_result = False
+            elif (road != "") and (street != "") and (not check_normalized_substring(road, street)):
+                self.logger.warning(f"2. Address(street=\"{street}\", neighborhood=\"{neighborhood}\", address=\"{road}, {suburb}, {city}\")")
+                valid_result = False
+            elif (suburb != "") and (neighborhood != "") and (not check_normalized_substring(suburb, neighborhood)):
+                self.logger.warning(f"3. Address(street=\"{street}\", neighborhood=\"{neighborhood}\", address=\"{road}, {suburb}, {city}\")")
+                valid_result = False
+
+            if not valid_result:
+                # self.logger.warning(f"Address(street=\"{street}\", neighborhood=\"{neighborhood}\", address=\"{road}, {suburb}, {city}\")")
+
+                return fallback_response
+
+            place_id = str(result["place_id"])
             
-            latitude = result["lat"]
-            longitude = result["lon"]
+            latitude = float(result["lat"])
+            longitude = float(result["lon"])
 
-        else:
+            return GeocodingResult(
+                ok=True,
+                formatted_address=formatted_address,
+                place_id=place_id,
+                latitude=latitude,
+                longitude=longitude,
+            )
 
-            return GeocodingResult()
+        return fallback_response
 
-        return GeocodingResult(
-            ok=True,
-            formatted_address=formatted_address,
-            place_id=place_id,
-            latitude=latitude,
-            longitude=longitude,
-        )
 
     def request(self, address: str) -> GeocodingResult:
         """Try geocode some equivalent combination of address
@@ -76,22 +98,23 @@ class MapsClient:
         """
         splits = address.split(",")
 
-        street = splits[0]
-        neighborhood = splits[1]
+        street = splits[0].strip()
+        neighborhood = splits[1].strip()
 
         queries = [
-            f"{street}, {neighborhood}",
-            f"{street}",
-            f"{neighborhood}"
+            (street, neighborhood, f"{street}, {neighborhood}"),
+            (street, "", street),
+            ("", neighborhood, neighborhood),
         ]
 
-        for query in queries:
-            result = self._request(query)
+        for _street, _neighborhood, _address in queries:
+            result = self._request(_street, _neighborhood, _address)
 
             if result.ok:
                 break
 
         if not result.ok:
-            self.logger.error(f"Address(\"{address}\") failed to geocode.")
+            # self.logger.error(f"Address(address=\"{address}\") failed to geocode.")
+            pass
 
         return result

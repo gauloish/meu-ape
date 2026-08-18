@@ -16,7 +16,7 @@ from .base import Base
 class GeocodingCache(Base):
     __tablename__ = "geocoding_cache"
 
-    address: Mapped[str] = mapped_column(String, primary_key=True)
+    address: Mapped[str] = mapped_column(String, primary_key=True, sqlite_on_conflict_primary_key="IGNORE")
     latitude: Mapped[float] = mapped_column(Float)
     longitude: Mapped[float] = mapped_column(Float)
     formatted_address: Mapped[str] = mapped_column(String)

@@ -7,7 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 from pydantic import BaseModel
 
-from . import MapsClient
+from .maps import MapsClient
+from .utils import normalize_text
 
 from ..database import (
     Base,
@@ -35,32 +36,6 @@ class Geocoder:
 
         Base.metadata.create_all(engine)
 
-    def _normalize_address(self, address: str) -> str:
-        """Normalize address removing accents, exceded blank spaces,
-        and put the string in upper case
-
-        Args:
-            address (str): Original address string
-
-        Returns:
-            str: Normalized address string
-        """
-        normalized_address = "".join(
-            c
-            for c in unicodedata.normalize("NFKD", address)
-            if not unicodedata.combining(c)
-        )
-
-        normalized_address = re.sub(
-            pattern=r"\s+",
-            repl=" ",
-            string=normalized_address
-        )
-
-        normalized_address = normalized_address.strip().upper()
-
-        return normalized_address
-
     def geocode(self, addresses: List[str]) -> Dict[str, GeocodingFeatures]:
         """Geocode all given addresses, transforming it in coordinates (latitude and longitude)
 
@@ -77,7 +52,9 @@ class Geocoder:
             unprocessed_addresses = []
 
             for address in addresses:
-                normalized_address = self._normalize_address(address)
+                normalized_address = normalize_text(address)
+
+                # self.logger.info(f"{address}: {normalized_address}")
                 # TODO: Improve this query
                 result = repository.get(normalized_address)
 
@@ -88,19 +65,26 @@ class Geocoder:
                     )
                 else:
                     unprocessed_addresses.append(address)
+
+            unprocessed_addresses = list(set(unprocessed_addresses))
             
             with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
                 requests_results = executor.map(self.client.request, unprocessed_addresses)
 
             geocoded_results = zip(unprocessed_addresses, requests_results)
             geocoded_features = dict()
-            geocoded_addresses = []
+
+            ok_results_count = 0
+            total_results_count = 0
 
             for address, result in geocoded_results:
+                total_results_count += 1
+
                 if not result.ok:
                     continue
 
-                normalized_address = self._normalize_address(address)
+                ok_results_count += 1
+                normalized_address = normalize_text(address)
 
                 geocoded_address = GeocodingCache(
                     address=normalized_address,
@@ -116,11 +100,16 @@ class Geocoder:
                 )
 
                 geocoded_features[normalized_address] = geocoded_feature
-                geocoded_addresses.append(geocoded_address)
 
-            repository.add_many(geocoded_addresses)
+                if not repository.exists(normalized_address):
+                    repository.add(geocoded_address)
+
             session.commit()
             
             results = results | geocoded_features
+
+            ok_results_percentage = 100*ok_results_count / total_results_count
+
+            self.logger.info(f"Valid requests counting: {ok_results_count} / {total_results_count} ({ok_results_percentage:.2f} %)")
 
         return results

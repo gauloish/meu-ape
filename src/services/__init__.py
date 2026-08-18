@@ -8,6 +8,11 @@ from .geocoder import (
     GeocodingFeatures,
 )
 
+from .utils import (
+    normalize_text,
+    check_normalized_substring,
+)
+
 __all__ = [
     # google_maps.py
     "GeocodingResult",
@@ -16,4 +21,8 @@ __all__ = [
     # geocoder.py
     "Geocoder",
     "GeocodingFeatures",
+
+    # utils.py
+    "normalize_text",
+    "check_normalized_substring"
 ]

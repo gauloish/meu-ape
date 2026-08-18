@@ -35,7 +35,7 @@ def _build_engine() -> Engine:
         return create_engine(database_url, pool_pre_ping=True)
 
     # Local SQLite fallback for development
-    db_path = PROJECT_ROOT / "data" / "cache" / "geocoding.db"
+    db_path = PROJECT_ROOT / "artifacts" / "geocoder" / "cache" / "geocoding.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return create_engine(f"sqlite:///{db_path}")
 
