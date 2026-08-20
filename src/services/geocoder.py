@@ -1,6 +1,3 @@
-import re
-import unicodedata
-
 from logging import Logger
 from typing import List, Dict
 from concurrent.futures import ThreadPoolExecutor
@@ -53,9 +50,6 @@ class Geocoder:
 
             for address in addresses:
                 normalized_address = normalize_text(address)
-
-                # self.logger.info(f"{address}: {normalized_address}")
-                # TODO: Improve this query
                 result = repository.get(normalized_address)
 
                 if result:
@@ -74,16 +68,10 @@ class Geocoder:
             geocoded_results = zip(unprocessed_addresses, requests_results)
             geocoded_features = dict()
 
-            ok_results_count = 0
-            total_results_count = 0
-
             for address, result in geocoded_results:
-                total_results_count += 1
-
                 if not result.ok:
                     continue
 
-                ok_results_count += 1
                 normalized_address = normalize_text(address)
 
                 geocoded_address = GeocodingCache(
@@ -107,9 +95,5 @@ class Geocoder:
             session.commit()
             
             results = results | geocoded_features
-
-            ok_results_percentage = 100*ok_results_count / total_results_count
-
-            self.logger.info(f"Valid requests counting: {ok_results_count} / {total_results_count} ({ok_results_percentage:.2f} %)")
 
         return results

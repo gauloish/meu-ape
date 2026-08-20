@@ -1,16 +1,16 @@
-import requests
 import logging
 
 from logging import Logger
 from pydantic import BaseModel
+from geopy.geocoders import Nominatim
 
-from .utils import check_normalized_substring
 
 URL = f"http://localhost:8080/search"
 
-
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("geopy").setLevel(logging.WARNING)
+
 
 class GeocodingResult(BaseModel):
     ok: bool = False
@@ -24,67 +24,11 @@ class MapsClient:
     def __init__(self, logger: Logger):
         self.logger = logger
 
-    def _request(self, street: str, neighborhood: str, address: str) -> GeocodingResult:
-        params = {
-            "q": address,
-            "format": "jsonv2",
-            "limit": 1,
-            "addressdetails": 1,
-        }
-
-        response = requests.get(URL, params=params)
-        fallback_response = GeocodingResult()
-
-        if response.status_code == 200:
-            result = response.json()
-
-            if not isinstance(result, list):
-                return fallback_response
-
-            if len(result) == 0:
-                return fallback_response
-            
-            result = result[0]
-
-            formatted_address = result["display_name"]
-            address_info = result["address"]
-
-            valid_result = True
-
-            city = address_info.get("city", "")
-            road = address_info.get("road", "")
-            suburb = address_info.get("suburb", "")
-
-            if (city != "") and (not check_normalized_substring(city, "Goiânia")):
-                self.logger.warning(f"1. Address(street=\"{street}\", neighborhood=\"{neighborhood}\", address=\"{road}, {suburb}, {city}\")")
-                valid_result = False
-            elif (road != "") and (street != "") and (not check_normalized_substring(road, street)):
-                self.logger.warning(f"2. Address(street=\"{street}\", neighborhood=\"{neighborhood}\", address=\"{road}, {suburb}, {city}\")")
-                valid_result = False
-            elif (suburb != "") and (neighborhood != "") and (not check_normalized_substring(suburb, neighborhood)):
-                self.logger.warning(f"3. Address(street=\"{street}\", neighborhood=\"{neighborhood}\", address=\"{road}, {suburb}, {city}\")")
-                valid_result = False
-
-            if not valid_result:
-                # self.logger.warning(f"Address(street=\"{street}\", neighborhood=\"{neighborhood}\", address=\"{road}, {suburb}, {city}\")")
-
-                return fallback_response
-
-            place_id = str(result["place_id"])
-            
-            latitude = float(result["lat"])
-            longitude = float(result["lon"])
-
-            return GeocodingResult(
-                ok=True,
-                formatted_address=formatted_address,
-                place_id=place_id,
-                latitude=latitude,
-                longitude=longitude,
-            )
-
-        return fallback_response
-
+        self.geolocator  = Nominatim(
+            user_agent="geocoder",
+            domain="localhost:8080",
+            scheme="http",
+        )
 
     def request(self, address: str) -> GeocodingResult:
         """Try geocode some equivalent combination of address
@@ -99,22 +43,38 @@ class MapsClient:
         splits = address.split(",")
 
         street = splits[0].strip()
-        neighborhood = splits[1].strip()
+        suburb = splits[1].strip()
 
-        queries = [
-            (street, neighborhood, f"{street}, {neighborhood}"),
-            (street, "", street),
-            ("", neighborhood, neighborhood),
-        ]
+        queries = [f"{street}, {suburb}", suburb, street]
+        result = GeocodingResult()
 
-        for _street, _neighborhood, _address in queries:
-            result = self._request(_street, _neighborhood, _address)
+        for query in queries:
+            try:
+                location = self.geolocator.geocode(
+                    query=query,
+                    exactly_one=True,
+                    country_codes="BR",
+                )
 
-            if result.ok:
-                break
+                if location:
+                    formatted_address = location.address
+                    place_id = str(location.raw["place_id"])
+                    latitude = location.latitude
+                    longitude = location.longitude
 
-        if not result.ok:
-            # self.logger.error(f"Address(address=\"{address}\") failed to geocode.")
-            pass
+                    result = GeocodingResult(
+                        ok=True,
+                        formatted_address=formatted_address,
+                        place_id=place_id,
+                        latitude=latitude,
+                        longitude=longitude,
+                    )
+
+                    self.logger.info(f"Address(original=\"{address}\", found=\"{formatted_address}\")")
+
+                    break
+
+            except Exception as error:
+                self.logger.warning(f"Error to process Address(addres={address}): {error}")
 
         return result
