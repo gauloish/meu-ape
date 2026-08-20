@@ -66,7 +66,7 @@ if __name__ == "__main__":
     feature_extractor = FeatureExtractor(logger)
     geocoding_enricher = GeocodingEnricher(logger)
 
-    df = pd.read_csv("data/raw/zap_dataset.csv")
+    df = pd.read_csv("data/raw/zap_dataset.csv").iloc[:100]
 
     df = (df
         .pipe(data_cleaner)
