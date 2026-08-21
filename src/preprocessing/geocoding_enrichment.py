@@ -10,8 +10,8 @@ from ..services.geocoder import (
 )
 
 GEOCODING_FEATURES_DEFAULT: GeocodingFeatures = GeocodingFeatures(
-    latitude=-16.6670204,
-    longitude=-49.2521725,
+    latitude=np.nan,
+    longitude=np.nan,
 )
 
 MIN_LATITUDE: float = -16.85
@@ -59,15 +59,14 @@ class GeocodingEnricher:
                 GEOCODING_FEATURES_DEFAULT
             )
         else:
-            coordinates = GeocodingFeatures(
-                latitude=np.nan,
-                longitude=np.nan
-            )
+            coordinates = GEOCODING_FEATURES_DEFAULT
 
-        register["latitude"] = coordinates.latitude
-        register["longitude"] = coordinates.longitude
+        result = pd.Series()
 
-        return register
+        result["latitude"] = coordinates.latitude
+        result["longitude"] = coordinates.longitude
+
+        return result
 
     def _extract_geocoded_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Extract geocoded features from `rua` and `bairro` features
@@ -87,10 +86,11 @@ class GeocodingEnricher:
 
         self.geocoded_addresses = geocoder.geocode(addresses)
 
-        return (df
+        df[["latitude", "longitude"]] = (df["endereco"]
             .apply(self._create_geocoded_features, axis="columns")
-            .drop(["endereco", "rua", "bairro"], axis="columns")
         )
+
+        return df.drop(["endereco", "rua", "bairro"], axis="columns")
 
     def _clip_out_of_bounds_samples(self, df: pd.DataFrame) -> pd.DataFrame:
         """Clip samples with address out of bound of Goiânia
