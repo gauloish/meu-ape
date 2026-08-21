@@ -27,6 +27,8 @@ dependencies = [
     "psycopg[binary]>=3.2.0",
     "sqlalchemy>=2.0.51",
     "tqdm>=4.70.0",
+    "catboost>=1.2.10",
+    "xgboost>=3.4.1",
 ]
 
 [project.scripts]
