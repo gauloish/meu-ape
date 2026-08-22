@@ -95,7 +95,6 @@ class FeatureExtractor:
 
         mask = (df["tipo_imovel"] == "outro")
         df.loc[mask, "tipo_imovel"] = real_state_classes[mask]
-        df["tipo_imovel"] = df["tipo_imovel"].astype("category")
 
         return df.drop("titulo", axis="columns")
 
