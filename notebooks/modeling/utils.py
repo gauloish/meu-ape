@@ -62,8 +62,8 @@ def get_study(
 def report_scores(
     get_pipeline,
     study,
-    X_test,
-    y_test
+    X,
+    y
 ):
     pipeline = get_pipeline(study.best_params)
 
@@ -77,8 +77,8 @@ def report_scores(
 
     scores = cross_validate(
         pipeline,
-        X_test,
-        y_test,
+        X,
+        y,
         cv=cv,
         scoring=scoring,
     )
