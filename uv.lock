@@ -10,6 +10,18 @@ resolution-markers = [
     "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
+[manifest]
+members = [
+    "backend",
+    "geocoding-api",
+    "geocoding-client",
+    "ingestion",
+    "meu-ape",
+    "ml-core",
+    "ml-worker",
+    "notebooks",
+]
+
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.7.1"
@@ -184,6 +196,21 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e3/0f/d40bbe294bbf004d436a8bcbcfaadca8b5140d39ad0ad3d73d1a8ba15f14/automat-25.4.16.tar.gz", hash = "sha256:0017591a5477066e90d26b0e696ddc143baafd87b588cfac8100bc6be9634de0", size = 129977, upload-time = "2025-04-16T20:12:16.002Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/02/ff/1175b0b7371e46244032d43a56862d0af455823b5280a50c63d99cc50f18/automat-25.4.16-py3-none-any.whl", hash = "sha256:04e9bce696a8d5671ee698005af6e5a9fa15354140a87f4870744604dcdd3ba1", size = 42842, upload-time = "2025-04-16T20:12:14.447Z" },
+]
+
+[[package]]
+name = "backend"
+version = "0.1.0"
+source = { virtual = "apps/backend" }
+dependencies = [
+    { name = "geocoding-client" },
+    { name = "ml-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "geocoding-client", editable = "packages/geocoding-client" },
+    { name = "ml-core", editable = "packages/ml-core" },
 ]
 
 [[package]]
@@ -900,6 +927,16 @@ wheels = [
 ]
 
 [[package]]
+name = "geocoding-api"
+version = "0.1.0"
+source = { virtual = "apps/geocoding-api" }
+
+[[package]]
+name = "geocoding-client"
+version = "0.1.0"
+source = { editable = "packages/geocoding-client" }
+
+[[package]]
 name = "geographiclib"
 version = "2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1053,6 +1090,11 @@ sdist = { url = "https://files.pythonhosted.org/packages/ef/3c/82e84109e02c492f3
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1d/55/0f4df2a44053867ea9cbea73fc588b03c55605cd695cee0a3d86f0029cb2/incremental-24.11.0-py3-none-any.whl", hash = "sha256:a34450716b1c4341fe6676a0598e88a39e04189f4dce5dc96f656e040baa10b3", size = 21109, upload-time = "2025-11-28T02:30:16.442Z" },
 ]
+
+[[package]]
+name = "ingestion"
+version = "0.1.0"
+source = { virtual = "apps/ingestion" }
 
 [[package]]
 name = "itemadapter"
@@ -1418,6 +1460,7 @@ dependencies = [
     { name = "httpx" },
     { name = "matplotlib" },
     { name = "missingno" },
+    { name = "ml-core" },
     { name = "numpy" },
     { name = "optuna" },
     { name = "pandas" },
@@ -1446,6 +1489,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "matplotlib", specifier = ">=3.11.1" },
     { name = "missingno", specifier = ">=0.5.2" },
+    { name = "ml-core", editable = "packages/ml-core" },
     { name = "numpy", specifier = ">=2.5.1" },
     { name = "optuna", specifier = ">=4.9.0" },
     { name = "pandas", specifier = ">=3.0.5" },
@@ -1474,6 +1518,26 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/2b/f9/e20220b851bc6d7abf70b403a3080d6af946ed4b13b2bf91ef4e74d2aec9/missingno-0.5.2.tar.gz", hash = "sha256:4a4baa9ca9f9e4e0d9402455df26b656632e94b99e87fa64c0cdbbbc722837ac", size = 17489, upload-time = "2023-02-26T20:10:29.329Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/87/22/cd5cf999af21c2f97486622c551ac3d07361ced8125121e907f588ff5f24/missingno-0.5.2-py3-none-any.whl", hash = "sha256:55782621ce09ba0f0a1d08e5bd6d6fe1946469fb03951fadf7d209911ca5b072", size = 8704, upload-time = "2023-02-26T20:10:26.042Z" },
+]
+
+[[package]]
+name = "ml-core"
+version = "0.1.0"
+source = { editable = "packages/ml-core" }
+
+[[package]]
+name = "ml-worker"
+version = "0.1.0"
+source = { virtual = "apps/ml-worker" }
+dependencies = [
+    { name = "geocoding-client" },
+    { name = "ml-core" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "geocoding-client", editable = "packages/geocoding-client" },
+    { name = "ml-core", editable = "packages/ml-core" },
 ]
 
 [[package]]
@@ -1583,6 +1647,11 @@ sdist = { url = "https://files.pythonhosted.org/packages/2b/1d/58946e5aab18393e7
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7e/85/a5bfaebfd305ac18b57b0854d74e37e586809061a91fda62f0bd50c8518e/narwhals-2.24.0-py3-none-any.whl", hash = "sha256:42fdedf44e5b2ca7505630d45b4ac3058f38d8485cba9fe1652ca23152df7489", size = 461030, upload-time = "2026-07-13T10:49:17.571Z" },
 ]
+
+[[package]]
+name = "notebooks"
+version = "0.1.0"
+source = { virtual = "notebooks" }
 
 [[package]]
 name = "numpy"
