@@ -1,10 +1,16 @@
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from .engine import engine
 
 
-Session = sessionmaker(
-    bind=engine,
-    autoflush=False,
-    autocommit=False,
-)
+def _build_session() -> async_sessionmaker[AsyncSession]:
+    return async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
+
+
+AsyncSessionLocal: async_sessionmaker[AsyncSession] = _build_session()
