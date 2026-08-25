@@ -4,6 +4,11 @@ from .engine import engine
 
 
 def _build_session() -> async_sessionmaker[AsyncSession]:
+    """Build asynchronous session maker
+
+    Returns:
+        async_sessionmaker[AsyncSession]: Asynchronous session maker
+    """
     return async_sessionmaker(
         bind=engine,
         class_=AsyncSession,
@@ -14,3 +19,9 @@ def _build_session() -> async_sessionmaker[AsyncSession]:
 
 
 AsyncSessionLocal: async_sessionmaker[AsyncSession] = _build_session()
+
+
+async def get_db():
+    """Get database session to be used in API"""
+    async with AsyncSessionLocal() as session:
+        yield session
