@@ -63,7 +63,7 @@ def report_scores(
     get_pipeline,
     study,
     X,
-    y
+    y,
 ):
     pipeline = get_pipeline(study.best_params)
 
@@ -116,26 +116,47 @@ def _build_error_df(X_test, y_test, y_pred):
 
 
 def _plot_residuals_vs_predictions(error_df):
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(1, 2, figsize=(12, 5))
+    ax = ax.flatten()
 
     sns.scatterplot(
         data=error_df,
         x="y_pred",
         y="residual",
         alpha=0.5,
-        ax=ax,
+        ax=ax[0],
     )
 
-    ax.axhline(
+    ax[0].axhline(
         0,
         linestyle="--",
         linewidth=1.5,
     )
 
-    ax.set(
+    ax[0].set(
         xlabel="Predição",
         ylabel="Resíduo",
         title="Resíduos vs Predição",
+    )
+    
+    sns.scatterplot(
+        data=error_df,
+        x="y_true",
+        y="residual",
+        alpha=0.5,
+        ax=ax[1],
+    )
+
+    ax[1].axhline(
+        0,
+        linestyle="--",
+        linewidth=1.5,
+    )
+
+    ax[1].set(
+        xlabel="Valor Real",
+        ylabel="Resíduo",
+        title="Resíduos vs Valor Real",
     )
 
     sns.despine()
