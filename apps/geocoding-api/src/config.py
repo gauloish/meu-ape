@@ -40,11 +40,11 @@ class ColorFormatter(logging.Formatter):
 
 
 def setup_logging():
-    """Configura o logger global da aplicação."""
+    """Setup global logger application."""
     
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)
     
+    console_handler.setLevel(logging.DEBUG)
     console_handler.setFormatter(ColorFormatter())
     
     logging.basicConfig(
