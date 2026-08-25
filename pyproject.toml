@@ -33,3 +33,13 @@ dependencies = [
 
 [project.scripts]
 meu-ape = "src.cli.main:main"
+
+[tool.uv.workspace]
+members = [
+    "apps/backend",
+    "apps/ingestion",
+    "apps/geocoding-api",
+    "apps/ml-worker",
+    "packages/geocoding-client",
+    "packages/ml-core",
+]
