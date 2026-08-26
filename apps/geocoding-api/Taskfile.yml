@@ -22,9 +22,20 @@ tasks:
       - docker compose up --build -d
 
   down:
-    desc: "Derruba e remove toda a infraestrutura do Docker"
+    desc: "Derruba e remove os contêineres e redes do Docker (mantém volumes de dados)"
     cmds:
       - docker compose down
+
+  clean:
+    desc: "Derruba a stack, apaga os volumes de dados (banco/nominatim) e imagens locais"
+    cmds:
+      - docker compose down -v --rmi local --remove-orphans
+
+  reset:
+    desc: "Limpa totalmente os dados/imagens (clean) e recria o ambiente do zero"
+    cmds:
+      - task: clean
+      - task: run
 
   logs:
     desc: "Mostra os logs da API FastAPI em tempo real"
