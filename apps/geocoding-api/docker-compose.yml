@@ -22,19 +22,17 @@ services:
 
   # 2. Servidor Nominatim (Geocodificação Offline)
   nominatim_server:
-    image: mediagis/nominatim:4.4
+    image: mediagis/nominatim:5.3
     container_name: nominatim_server
     ports:
       - "8080:8080"
     environment:
       # Aponta para o arquivo local mapeado no volume abaixo
-      - PBF_PATH=/nominatim/data_pbf/mapa_cortado.pbf
+      - PBF_PATH=/artifacts/nominatim/goiania.osm.pbf
     volumes:
       # Mapeia a pasta local (onde seu script salva o PBF) para o contêiner
       - ./data_pbf:/nominatim/data_pbf
-      # Volume para persistir os dados processados do Nominatim
       - nominatim_data:/var/lib/postgresql/14/main
-    # Memória compartilhada extra necessária para o PostgreSQL interno do Nominatim
     shm_size: 1g
 
   # 3. A sua API FastAPI
