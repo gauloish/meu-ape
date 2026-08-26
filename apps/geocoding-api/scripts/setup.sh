@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-ARTIFACTS_DIR="$PROJECT_ROOT/artifacts/geocoder"
+ARTIFACTS_DIR="$PROJECT_ROOT/r"
 NOMINATIM_DIR="$ARTIFACTS_DIR/nominatim"
 OPEN_STREET_MAP_DIR="$ARTIFACTS_DIR/open_street_map"
 
