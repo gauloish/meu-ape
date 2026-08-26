@@ -9,14 +9,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-ARTIFACTS_DIR="$PROJECT_ROOT/r"
+ARTIFACTS_DIR="$PROJECT_ROOT/artifacts"
 NOMINATIM_DIR="$ARTIFACTS_DIR/nominatim"
 OPEN_STREET_MAP_DIR="$ARTIFACTS_DIR/open_street_map"
 
 PBF_URL="https://download.geofabrik.de/south-america/brazil/centro-oeste-latest.osm.pbf"
 BBOX="-49.45,-16.85,-49.15,-16.55"
 
-source "$SCRIPT_DIR/../utils.sh"
+source "$SCRIPT_DIR/utils.sh"
 
 # ------------------------------------------------------------------------------
 
