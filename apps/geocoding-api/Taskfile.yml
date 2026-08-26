@@ -1,0 +1,33 @@
+version: '3'
+
+tasks:
+  default:
+    desc: "Lista todos os comandos disponíveis"
+    cmds:
+      - task --list
+
+  map:
+    desc: "Executa o script Python para baixar e cortar o arquivo PBF"
+    cmds:
+      - ./scripts/setup.sh
+
+  api:
+    desc: "Sobe a infraestrutura (Banco, Nominatim e FastAPI) em background"
+    cmds:
+      - docker compose up --build -d
+
+  logs:
+    desc: "Mostra os logs da API em tempo real"
+    cmds:
+      - docker compose logs -f web_api
+
+  down:
+    desc: "Derruba toda a infraestrutura do Docker"
+    cmds:
+      - docker compose down
+
+  run:
+    desc: "Fluxo completo: Prepara o mapa e sobe a infraestrutura"
+    cmds:
+      - task: map
+      - task: api
