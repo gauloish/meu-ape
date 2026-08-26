@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # 1. Banco de Dados PostgreSQL para o seu Cache
+  cache_db:
+    image: postgres:15-alpine
+    container_name: geocoding_cache_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      # O nome do banco deve bater exatamente com a sua config.py
+      POSTGRES_DB: geocoding_database 
+    ports:
+      - "5432:5432" # Expõe para você acessar via DBeaver/DataGrip se quiser
+    volumes:
+      - cache_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d geocoding_database"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Servidor Nominatim (Geocodificação Offline)
+  nominatim_server:
+    image: mediagis/nominatim:4.4
+    container_name: nominatim_server
+    ports:
+      - "8080:8080"
+    environment:
+      # Aponta para o arquivo local mapeado no volume abaixo
+      - PBF_PATH=/nominatim/data_pbf/mapa_cortado.pbf
+    volumes:
+      # Mapeia a pasta local (onde seu script salva o PBF) para o contêiner
+      - ./data_pbf:/nominatim/data_pbf
+      # Volume para persistir os dados processados do Nominatim
+      - nominatim_data:/var/lib/postgresql/14/main
+    # Memória compartilhada extra necessária para o PostgreSQL interno do Nominatim
+    shm_size: 1g
+
+  # 3. A sua API FastAPI
+  web_api:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: geocoding_fastapi
+    ports:
+      - "8000:8000"
+    depends_on:
+      cache_db:
+        condition: service_healthy # Só sobe a API se o banco estiver pronto
+      nominatim_server:
+        condition: service_started
+    environment:
+      # Variáveis de ambiente que sobrescrevem os padrões caso necessário
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_HOST=cache_db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=geocoding_database
+      - NOMINATIM_URL=http://nominatim_server:8080
+
+# Declaração dos volumes nomeados para persistência
+volumes:
+  cache_data:
+  nominatim_data:
