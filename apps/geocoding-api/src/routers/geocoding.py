@@ -1,22 +1,25 @@
-import os
 import asyncio
-import httpx
+import json
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
+from ..database.models import GeocodingCache, ReverseGeocodingCache
+from ..database.repositories import GeocodingRepository, ReverseGeocodingRepository
 from ..database.session import get_db
-from ..database.repositories import GeocodingRepository
-from ..database.models import GeocodingCache
 from ..schemas import (
-    GeocodingResponse, 
-    GeocodingData, 
-    BatchGeocodingRequest, 
+    BatchGeocodingRequest,
     BatchGeocodingResponse,
-    CoordinateRequest,
-    BatchReverseGeocodingRequest, 
+    BatchReverseGeocodingRequest,
     BatchReverseGeocodingResponse,
-    ReverseGeocodingResult
+    CoordinateRequest,
+    GeocodingData,
+    GeocodingResponse,
+    ReverseGeocodingResponse,
+    ReverseGeocodingResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,294 +27,389 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/geocoding", tags=["Geocoding"])
 
 
-NOMINATIM_URL = os.getenv("NOMINATIM_URL", "http://nominatim_server:8080")
-USER_AGENT = "GeocodingAPI/1.0"
+def get_http_client(request: Request) -> httpx.AsyncClient:
+    """Dependency to get shared HTTP client."""
+    return request.app.state.http_client
 
 
 @router.get(
     "/search",
-    response_model=GeocodingResponse, 
-    summary="Busca coordenadas por endereço (com cache)"
+    response_model=GeocodingResponse,
+    summary="Busca coordenadas por endereço (com cache no PostgreSQL)",
 )
 async def search_address(
     address: str = Query(..., description="Endereço completo para buscar"),
-    db: AsyncSession = Depends(get_db)
-):
+    db: AsyncSession = Depends(get_db),
+    client: httpx.AsyncClient = Depends(get_http_client),
+) -> GeocodingResponse:
     repo = GeocodingRepository(db)
 
+    # 1. Consulta o cache no PostgreSQL
     try:
         cached_address = await repo.get(address)
-
         if cached_address:
             logger.info(f"Cache HIT para o endereço: '{address}'")
-
             return GeocodingResponse(
                 source="cache",
                 data=GeocodingData(
                     place_id=cached_address.place_id,
-                    address=cached_address.address,
+                    address=address,
                     latitude=cached_address.latitude,
                     longitude=cached_address.longitude,
-                    formatted_address=cached_address.formatted_address
-                )
+                    formatted_address=cached_address.formatted_address,
+                ),
             )
-
     except Exception as e:
-        logger.error(f"Erro ao consultar o cache: {e}")
+        logger.error(f"Erro ao consultar o cache para '{address}': {e}")
 
+    # 2. Cache MISS — Consulta o Nominatim
     logger.info(f"Cache MISS. Buscando '{address}' no Nominatim...")
+    try:
+        response = await client.get(
+            f"{settings.nominatim_url}/search",
+            params={"q": address, "format": "json", "addressdetails": 1, "limit": 1},
+        )
+        response.raise_for_status()
+        data = response.json()
 
-    async with httpx.AsyncClient() as client:
+        if not data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Endereço não encontrado no mapa.",
+            )
+
+        first_result = data[0]
+        # O Nominatim retorna 'lat' e 'lon' como strings
+        lat_val = float(first_result["lat"])
+        lon_val = float(first_result["lon"])
+        place_id_str = str(first_result["place_id"])
+        formatted_addr = first_result.get("display_name", address)
+
+        # 3. Salva no cache com upsert
+        new_cache = GeocodingCache(
+            address=address,
+            latitude=lat_val,
+            longitude=lon_val,
+            formatted_address=formatted_addr,
+            place_id=place_id_str,
+        )
+
         try:
-            response = await client.get(
-                f"{NOMINATIM_URL}/search",
-                params={"q": address, "format": "json", "addressdetails": 1, "limit": 1},
-                headers={"User-Agent": USER_AGENT},
-                timeout=10.0
-            )
+            await repo.add(new_cache, auto_commit=True)
+            logger.info(f"Novo endereço salvo no cache: '{address}'")
+        except Exception as e:
+            logger.error(f"Não foi possível salvar no cache: {e}")
 
-            response.raise_for_status()
-            data = response.json()
-
-            if not data:
-                raise HTTPException(status_code=404, detail="Endereço não encontrado no mapa.")
-
-            first_result = data[0]
-
-            new_cache = GeocodingCache(
+        return GeocodingResponse(
+            source="nominatim",
+            data=GeocodingData(
+                place_id=place_id_str,
                 address=address,
-                latitude=float(first_result["latitude"]),
-                longitude=float(first_result["longitude"]),
-                formatted_address=first_result["display_name"],
-                place_id=str(first_result["place_id"])
-            )
-            
-            try:
-                await repo.add(new_cache, auto_commit=True)
-                logger.info(f"Novo endereço salvo no cache: '{address}'")
+                latitude=lat_val,
+                longitude=lon_val,
+                formatted_address=formatted_addr,
+            ),
+        )
 
-            except Exception as e:
-                logger.error(f"Não foi possível salvar no cache: {e}")
-
-            return GeocodingResponse(
-                source="nominatim",
-                data=GeocodingData(
-                    place_id=str(first_result["place_id"]),
-                    address=address,
-                    latitude=float(first_result["latitude"]),
-                    longitude=float(first_result["longitude"]),
-                    formatted_address=first_result["display_name"]
-                )
-            )
-
-        except httpx.RequestError as exc:
-            logger.error(f"Erro de conexão com o Nominatim: {exc}")
-            raise HTTPException(status_code=502, detail="Serviço de geocodificação indisponível.")
+    except httpx.RequestError as exc:
+        logger.error(f"Erro de conexão com o Nominatim ao buscar '{address}': {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Serviço de geocodificação indisponível.",
+        )
 
 
 @router.post(
-    "/search/batch", 
-    response_model=BatchGeocodingResponse, 
-    summary="Busca coordenadas para múltiplos endereços em lote (Concorrente)"
+    "/search/batch",
+    response_model=BatchGeocodingResponse,
+    summary="Busca coordenadas para múltiplos endereços em lote (Concorrente com Cache)",
 )
 async def batch_search_address(
     request: BatchGeocodingRequest,
-    db: AsyncSession = Depends(get_db)
-):
+    db: AsyncSession = Depends(get_db),
+    client: httpx.AsyncClient = Depends(get_http_client),
+) -> BatchGeocodingResponse:
     repo = GeocodingRepository(db)
-    final_results = []
-    addresses_to_fetch = []
-    new_caches_to_save = []
+    final_results_map: dict[str, GeocodingResponse] = {}
+    addresses_to_fetch: list[str] = []
 
+    # Desduplica mantendo a ordem original
+    unique_addresses = list(dict.fromkeys(request.addresses))
+
+    # 1. Consulta o cache em lote
     try:
-        cached_records = await repo.get_many(request.addresses)
-        cache_map = {record.address: record for record in cached_records}
-
+        cache_map = await repo.get_many(unique_addresses)
     except Exception as e:
-        logger.error(f"Erro ao buscar lote no cache: {e}")
+        logger.error(f"Erro ao consultar lote no cache: {e}")
         cache_map = {}
 
-    for address in request.addresses:
-        if address in cache_map:
-            cached = cache_map[address]
-            final_results.append(
-                GeocodingResponse(
-                    source="cache",
-                    data=GeocodingData(
-                        place_id=cached.place_id,
-                        address=cached.address,
-                        latitude=cached.latitude,
-                        longitude=cached.longitude,
-                        formatted_address=cached.formatted_address
-                    )
-                )
+    for addr in unique_addresses:
+        norm_key = addr.strip().lower()
+        if norm_key in cache_map:
+            cached = cache_map[norm_key]
+            final_results_map[addr] = GeocodingResponse(
+                source="cache",
+                data=GeocodingData(
+                    place_id=cached.place_id,
+                    address=addr,
+                    latitude=cached.latitude,
+                    longitude=cached.longitude,
+                    formatted_address=cached.formatted_address,
+                ),
             )
-
         else:
-            addresses_to_fetch.append(address)
+            addresses_to_fetch.append(addr)
 
+    # 2. Busca endereços restantes concorrentemente no Nominatim
     if addresses_to_fetch:
         logger.info(f"Processando {len(addresses_to_fetch)} endereços de forma concorrente no Nominatim...")
-        
-        semaphore = asyncio.Semaphore(5) 
+        semaphore = asyncio.Semaphore(10)
+        new_caches_to_save: list[GeocodingCache] = []
 
-        async def fetch_address_with_semaphore(client: httpx.AsyncClient, addr: str):
+        async def fetch_address(addr: str) -> tuple[str, dict | None]:
             async with semaphore:
                 try:
-                    response = await client.get(
-                        f"{NOMINATIM_URL}/search",
-                        params={"q": addr, "format": "json", "addressdetails": 1, "limit": 1},
-                        headers={"User-Agent": USER_AGENT},
-                        timeout=15.0
+                    res = await client.get(
+                        f"{settings.nominatim_url}/search",
+                        params={
+                            "q": addr,
+                            "format": "json",
+                            "addressdetails": 1,
+                            "limit": 1,
+                        },
                     )
-                    response.raise_for_status()
-                    data = response.json()
-                    
+                    res.raise_for_status()
+                    data = res.json()
                     if data:
                         return addr, data[0]
-
                 except Exception as e:
-                    logger.error(f"Erro ao buscar '{addr}': {e}")
-                
+                    logger.error(f"Erro ao buscar endereço em lote '{addr}': {e}")
                 return addr, None
 
-        async with httpx.AsyncClient() as client:
-            tasks = [
-                fetch_address_with_semaphore(client, addr) 
-                for addr in addresses_to_fetch
-            ]
-            
-            results = await asyncio.gather(*tasks)
+        tasks = [fetch_address(addr) for addr in addresses_to_fetch]
+        fetched_results = await asyncio.gather(*tasks)
 
-            for address, result_data in results:
-                if result_data:
-                    final_results.append(
-                        GeocodingResponse(
-                            source="nominatim",
-                            data=GeocodingData(
-                                place_id=str(result_data["place_id"]),
-                                address=address,
-                                latitude=float(result_data["latitude"]),
-                                longitude=float(result_data["longitude"]),
-                                formatted_address=result_data["display_name"]
-                            )
-                        )
+        for addr, result_data in fetched_results:
+            if result_data:
+                lat_val = float(result_data["lat"])
+                lon_val = float(result_data["lon"])
+                place_id_str = str(result_data["place_id"])
+                formatted_addr = result_data.get("display_name", addr)
+
+                res_obj = GeocodingResponse(
+                    source="nominatim",
+                    data=GeocodingData(
+                        place_id=place_id_str,
+                        address=addr,
+                        latitude=lat_val,
+                        longitude=lon_val,
+                        formatted_address=formatted_addr,
+                    ),
+                )
+                final_results_map[addr] = res_obj
+
+                new_caches_to_save.append(
+                    GeocodingCache(
+                        address=addr,
+                        latitude=lat_val,
+                        longitude=lon_val,
+                        formatted_address=formatted_addr,
+                        place_id=place_id_str,
                     )
-                    
-                    new_caches_to_save.append(
-                        GeocodingCache(
-                            address=address,
-                            latitude=float(result_data["latitude"]),
-                            longitude=float(result_data["longitude"]),
-                            formatted_address=result_data["display_name"],
-                            place_id=str(result_data["place_id"])
-                        )
-                    )
+                )
 
-    if new_caches_to_save:
-        try:
-            await repo.add_many(new_caches_to_save, auto_commit=True)
-            logger.info(f"{len(new_caches_to_save)} novos endereços salvos no cache em lote.")
+        # 3. Salva novos resultados no cache de forma atômica/upsert
+        if new_caches_to_save:
+            try:
+                await repo.add_many(new_caches_to_save, auto_commit=True)
+                logger.info(f"{len(new_caches_to_save)} novos endereços salvos no cache em lote.")
+            except Exception as e:
+                logger.error(f"Erro ao salvar lote de endereços no cache: {e}")
 
-        except Exception as e:
-            logger.error(f"Erro ao salvar lote no cache: {e}")
+    # Reorganiza os resultados mantendo a ordem original da requisição (incluindo duplicados)
+    ordered_results = [
+        final_results_map.get(
+            addr,
+            GeocodingResponse(
+                source="error",
+                data=GeocodingData(
+                    place_id="",
+                    address=addr,
+                    latitude=0.0,
+                    longitude=0.0,
+                    formatted_address="Endereço não encontrado",
+                ),
+            ),
+        )
+        for addr in request.addresses
+    ]
 
-    return BatchGeocodingResponse(results=final_results)
+    return BatchGeocodingResponse(results=ordered_results)
 
 
 @router.get(
-    "/reverse", 
-    summary="Busca endereço a partir de Latitude e Longitude"
+    "/reverse",
+    response_model=ReverseGeocodingResponse,
+    summary="Busca endereço a partir de Latitude e Longitude (com cache)",
 )
 async def reverse_geocode(
-    lat: float = Query(..., description="Latitude"),
-    lon: float = Query(..., description="Longitude")
-):
+    lat: float = Query(..., description="Latitude", ge=-90.0, le=90.0),
+    lon: float = Query(..., description="Longitude", ge=-180.0, le=180.0),
+    db: AsyncSession = Depends(get_db),
+    client: httpx.AsyncClient = Depends(get_http_client),
+) -> ReverseGeocodingResponse:
     logger.info(f"Reverse geocoding requisitado para Lat: {lat}, Lon: {lon}")
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"{NOMINATIM_URL}/reverse",
-                params={"lat": lat, "lon": lon, "format": "json"},
-                headers={"User-Agent": USER_AGENT},
-                timeout=10.0
+    rev_repo = ReverseGeocodingRepository(db)
+
+    # 1. Verifica cache no PostgreSQL
+    try:
+        cached = await rev_repo.get(lat, lon)
+        if cached:
+            logger.info(f"Reverse cache HIT para Lat: {lat}, Lon: {lon}")
+            return ReverseGeocodingResponse(source="cache", data=cached.get_data())
+    except Exception as e:
+        logger.error(f"Erro ao consultar cache de reverse geocoding: {e}")
+
+    # 2. Cache MISS — Consulta o Nominatim
+    try:
+        response = await client.get(
+            f"{settings.nominatim_url}/reverse",
+            params={"lat": lat, "lon": lon, "format": "json"},
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        if "error" in data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Nenhum endereço encontrado para essas coordenadas.",
             )
-            response.raise_for_status()
-            data = response.json()
-            
-            if "error" in data:
-                raise HTTPException(status_code=404, detail="Nenhum endereço encontrado para essas coordenadas.")
-                
-            return {"source": "nominatim", "data": data}
-            
-        except httpx.RequestError as exc:
-            logger.error(f"Erro de conexão com o Nominatim: {exc}")
-            raise HTTPException(status_code=502, detail="Serviço de geocodificação indisponível.")
+
+        # 3. Salva no cache
+        key = ReverseGeocodingCache.make_key(lat, lon)
+        new_cache = ReverseGeocodingCache(
+            coord_key=key,
+            latitude=lat,
+            longitude=lon,
+            raw_data_json=json.dumps(data),
+        )
+        try:
+            await rev_repo.add(new_cache, auto_commit=True)
+            logger.info(f"Novo reverse geocode salvo no cache para Lat: {lat}, Lon: {lon}")
+        except Exception as e:
+            logger.error(f"Erro ao salvar reverse cache no banco: {e}")
+
+        return ReverseGeocodingResponse(source="nominatim", data=data)
+
+    except httpx.RequestError as exc:
+        logger.error(f"Erro de conexão com o Nominatim no reverse geocoding: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Serviço de geocodificação indisponível.",
+        )
 
 
 @router.post(
-    "/reverse/batch", 
+    "/reverse/batch",
     response_model=BatchReverseGeocodingResponse,
-    summary="Busca endereços a partir de múltiplas coordenadas em lote (Concorrente)"
+    summary="Busca endereços a partir de múltiplas coordenadas em lote (Concorrente com Cache)",
 )
 async def batch_reverse_geocode(
-    request: BatchReverseGeocodingRequest
-):
-    final_results = []
-    
+    request: BatchReverseGeocodingRequest,
+    db: AsyncSession = Depends(get_db),
+    client: httpx.AsyncClient = Depends(get_http_client),
+) -> BatchReverseGeocodingResponse:
     if not request.coordinates:
         return BatchReverseGeocodingResponse(results=[])
 
-    logger.info(f"Processando {len(request.coordinates)} coordenadas de forma concorrente no Nominatim...")
-    
-    semaphore = asyncio.Semaphore(5) 
+    rev_repo = ReverseGeocodingRepository(db)
+    final_results_map: dict[str, ReverseGeocodingResult] = {}
+    coords_to_fetch: list[CoordinateRequest] = []
 
-    async def fetch_reverse_with_semaphore(client: httpx.AsyncClient, coord: CoordinateRequest):
-        async with semaphore:
-            try:
-                response = await client.get(
-                    f"{NOMINATIM_URL}/reverse",
-                    params={"lat": coord.latitude, "lon": coord.longitude, "format": "json"},
-                    headers={"User-Agent": USER_AGENT},
-                    timeout=15.0
-                )
-                response.raise_for_status()
-                data = response.json()
-                
-                if "error" not in data:
-                    return coord, data
-                
-            except Exception as e:
-                logger.error(f"Erro ao buscar Latitude: {coord.latitude}, Longitude: {coord.longitude}: {e}")
-            
-            return coord, None
+    # Extrai a lista de tuplas de coordenadas
+    coord_tuples = [(c.latitude, c.longitude) for c in request.coordinates]
 
-    async with httpx.AsyncClient() as client:
-        tasks = [
-            fetch_reverse_with_semaphore(client, coord) 
-            for coord in request.coordinates
-        ]
-        
-        results = await asyncio.gather(*tasks)
+    # 1. Consulta cache em lote
+    try:
+        cache_map = await rev_repo.get_many(coord_tuples)
+    except Exception as e:
+        logger.error(f"Erro ao buscar lote no cache de reverse: {e}")
+        cache_map = {}
 
-        for coord, result_data in results:
+    for coord in request.coordinates:
+        key = ReverseGeocodingCache.make_key(coord.latitude, coord.longitude)
+        if key in cache_map:
+            cached_rec = cache_map[key]
+            final_results_map[key] = ReverseGeocodingResult(
+                query=coord,
+                source="cache",
+                data=cached_rec.get_data(),
+            )
+        else:
+            coords_to_fetch.append(coord)
+
+    # 2. Busca coordenadas faltantes no Nominatim de forma concorrente
+    if coords_to_fetch:
+        logger.info(f"Processando {len(coords_to_fetch)} coordenadas em lote no Nominatim...")
+        semaphore = asyncio.Semaphore(10)
+        new_caches_to_save: list[ReverseGeocodingCache] = []
+
+        async def fetch_reverse(c: CoordinateRequest) -> tuple[CoordinateRequest, dict | None]:
+            async with semaphore:
+                try:
+                    res = await client.get(
+                        f"{settings.nominatim_url}/reverse",
+                        params={"lat": c.latitude, "lon": c.longitude, "format": "json"},
+                    )
+                    res.raise_for_status()
+                    data = res.json()
+                    if "error" not in data:
+                        return c, data
+                except Exception as e:
+                    logger.error(f"Erro ao buscar reverse para ({c.latitude}, {c.longitude}): {e}")
+                return c, None
+
+        tasks = [fetch_reverse(c) for c in coords_to_fetch]
+        fetched_results = await asyncio.gather(*tasks)
+
+        for coord_req, result_data in fetched_results:
+            key = ReverseGeocodingCache.make_key(coord_req.latitude, coord_req.longitude)
             if result_data:
-                final_results.append(
-                    ReverseGeocodingResult(
-                        query=coord,
-                        source="nominatim",
-                        data=result_data
+                final_results_map[key] = ReverseGeocodingResult(
+                    query=coord_req,
+                    source="nominatim",
+                    data=result_data,
+                )
+                new_caches_to_save.append(
+                    ReverseGeocodingCache(
+                        coord_key=key,
+                        latitude=coord_req.latitude,
+                        longitude=coord_req.longitude,
+                        raw_data_json=json.dumps(result_data),
                     )
                 )
-
             else:
-                final_results.append(
-                    ReverseGeocodingResult(
-                        query=coord,
-                        source="error",
-                        data=None
-                    )
+                final_results_map[key] = ReverseGeocodingResult(
+                    query=coord_req,
+                    source="error",
+                    data=None,
                 )
 
-    return BatchReverseGeocodingResponse(results=final_results)
+        # 3. Salva no cache os novos itens
+        if new_caches_to_save:
+            try:
+                await rev_repo.add_many(new_caches_to_save, auto_commit=True)
+                logger.info(f"{len(new_caches_to_save)} novas coordenadas salvas no cache reverse em lote.")
+            except Exception as e:
+                logger.error(f"Erro ao salvar lote de reverse no cache: {e}")
+
+    # Reorganiza os resultados na ordem original das requisições
+    ordered_results = [
+        final_results_map.get(
+            ReverseGeocodingCache.make_key(c.latitude, c.longitude),
+            ReverseGeocodingResult(query=c, source="error", data=None),
+        )
+        for c in request.coordinates
+    ]
+
+    return BatchReverseGeocodingResponse(results=ordered_results)

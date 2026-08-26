@@ -1,63 +1,78 @@
-version: '3.8'
-
 services:
-  # 1. Banco de Dados PostgreSQL para o seu Cache
+  # 1. Banco de Dados PostgreSQL para Cache
   cache_db:
     image: postgres:15-alpine
     container_name: geocoding_cache_db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      # O nome do banco deve bater exatamente com a sua config.py
-      POSTGRES_DB: geocoding_database 
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-geocoding_database}
     ports:
-      - "5432:5432" # Expõe para você acessar via DBeaver/DataGrip se quiser
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - cache_data:/var/lib/postgresql/data
+    networks:
+      - geocoding_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d geocoding_database"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-geocoding_database}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 20s
 
   # 2. Servidor Nominatim (Geocodificação Offline)
   nominatim_server:
     image: mediagis/nominatim:5.3
     container_name: nominatim_server
+    restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "${NOMINATIM_HOST_PORT:-8080}:8080"
     environment:
-      # Aponta para o arquivo local mapeado no volume abaixo
-      - PBF_PATH=/artifacts/nominatim/goiania.osm.pbf
+      - PBF_PATH=/nominatim/data_pbf/goiania.osm.pbf
     volumes:
-      # Mapeia a pasta local (onde seu script salva o PBF) para o contêiner
-      - ./data_pbf:/nominatim/data_pbf
-      - nominatim_data:/var/lib/postgresql/14/main
+      - ./artifacts/nominatim:/nominatim/data_pbf:z
+      - nominatim_data:/var/lib/postgresql/16/main
     shm_size: 1g
+    networks:
+      - geocoding_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/status || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
-  # 3. A sua API FastAPI
+  # 3. API FastAPI
   web_api:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile
     container_name: geocoding_fastapi
+    restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     depends_on:
       cache_db:
-        condition: service_healthy # Só sobe a API se o banco estiver pronto
+        condition: service_healthy
       nominatim_server:
-        condition: service_started
+        condition: service_healthy
     environment:
-      # Variáveis de ambiente que sobrescrevem os padrões caso necessário
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_HOST=cache_db
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=geocoding_database
-      - NOMINATIM_URL=http://nominatim_server:8080
+      - POSTGRES_USER=${POSTGRES_USER:-user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_HOST=${POSTGRES_HOST:-cache_db}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB:-geocoding_database}
+      - NOMINATIM_URL=${NOMINATIM_URL:-http://nominatim_server:8080}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    networks:
+      - geocoding_net
 
-# Declaração dos volumes nomeados para persistência
+networks:
+  geocoding_net:
+    driver: bridge
+    name: geocoding_network
+
 volumes:
   cache_data:
   nominatim_data:

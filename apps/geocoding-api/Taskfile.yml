@@ -7,27 +7,57 @@ tasks:
       - task --list
 
   map:
-    desc: "Executa o script Python para baixar e cortar o arquivo PBF"
+    desc: "Executa o script de configuração e corte do mapa local do Nominatim"
     cmds:
       - ./scripts/setup.sh
 
-  api:
-    desc: "Sobe a infraestrutura (Banco, Nominatim e FastAPI) em background"
+  up:
+    desc: "Sobe toda a infraestrutura Docker (Banco, Nominatim e API) em background"
+    cmds:
+      - docker compose up -d
+
+  build:
+    desc: "Reconstrói a imagem Docker da API e sobe os contêineres"
     cmds:
       - docker compose up --build -d
 
-  logs:
-    desc: "Mostra os logs da API em tempo real"
-    cmds:
-      - docker compose logs -f web_api
-
   down:
-    desc: "Derruba toda a infraestrutura do Docker"
+    desc: "Derruba e remove toda a infraestrutura do Docker"
     cmds:
       - docker compose down
 
+  logs:
+    desc: "Mostra os logs da API FastAPI em tempo real"
+    cmds:
+      - docker compose logs -f web_api
+
+  logs-all:
+    desc: "Mostra os logs de todos os contêineres em tempo real"
+    cmds:
+      - docker compose logs -f
+
+  ps:
+    desc: "Exibe o status dos contêineres Docker"
+    cmds:
+      - docker compose ps
+
+  shell:
+    desc: "Abre um terminal interativo bash no contêiner da API"
+    cmds:
+      - docker compose exec web_api bash
+
+  db-shell:
+    desc: "Conecta ao PostgreSQL via psql no contêiner do banco de cache"
+    cmds:
+      - docker compose exec cache_db psql -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-geocoding_database}
+
+  lint:
+    desc: "Executa verificação de código com o Ruff via uv"
+    cmds:
+      - uv run ruff check .
+
   run:
-    desc: "Fluxo completo: Prepara o mapa e sobe a infraestrutura"
+    desc: "Fluxo completo: Prepara o mapa e sobe a infraestrutura Docker"
     cmds:
       - task: map
-      - task: api
+      - task: build

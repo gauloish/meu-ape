@@ -8,6 +8,11 @@ dependencies = [
     "asyncpg>=0.31.0",
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
+    "pydantic-settings>=2.0.0",
     "sqlalchemy>=2.0.51",
     "uvicorn>=0.52.4",
 ]
+
+[tool.pyright]
+extraPaths = ["."]
+

@@ -1,4 +1,4 @@
-from typing import List, Optional, Any
+from typing import Any
 from pydantic import BaseModel, Field
 
 
@@ -7,49 +7,58 @@ class GeocodingData(BaseModel):
     address: str = Field(..., description="Endereço original usado na busca")
     latitude: float = Field(..., description="Latitude da coordenada")
     longitude: float = Field(..., description="Longitude da coordenada")
-    formatted_address: str = Field(..., description="Endereço formatado e padronizado retornado pelo Nominatim")
+    formatted_address: str = Field(..., description="Endereço formatado retornado pelo Nominatim")
 
 
 class GeocodingResponse(BaseModel):
-    source: str = Field(..., description="Origem do dado: 'cache' (banco de dados) ou 'nominatim' (API externa)")
+    source: str = Field(..., description="Origem do dado: 'cache' (banco) ou 'nominatim' (API externa)")
     data: GeocodingData
 
 
 class HealthResponse(BaseModel):
-    status: str = Field(..., description="Status atual da aplicação (ex: online)")
-    message: str = Field(..., description="Mensagem descritiva do status")
+    status: str = Field(..., description="Status atual da aplicação ('online', 'degraded', 'offline')")
+    message: str = Field(..., description="Mensagem detalhada do status")
+    database: bool = Field(..., description="Conectividade com banco de dados PostgreSQL")
+    nominatim: bool = Field(..., description="Conectividade com servidor Nominatim")
 
 
 class BatchGeocodingRequest(BaseModel):
-    addresses: List[str] = Field(
-        ..., 
-        description="Lista de endereços para buscar", 
-        max_length=100
+    addresses: list[str] = Field(
+        ...,
+        description="Lista de endereços para busca em lote",
+        min_length=1,
+        max_length=100,
     )
 
 
 class BatchGeocodingResponse(BaseModel):
-    results: List[GeocodingResponse] = Field(..., description="Lista com os resultados correspondentes")
+    results: list[GeocodingResponse] = Field(..., description="Lista de resultados correspondentes")
 
 
 class CoordinateRequest(BaseModel):
-    latitude: float = Field(..., description="Latitude")
-    longitude: float = Field(..., description="Longitude")
+    latitude: float = Field(..., description="Latitude", ge=-90.0, le=90.0)
+    longitude: float = Field(..., description="Longitude", ge=-180.0, le=180.0)
+
+
+class ReverseGeocodingResponse(BaseModel):
+    source: str = Field(..., description="Origem do dado ('cache' ou 'nominatim')")
+    data: dict[str, Any] = Field(..., description="Dados do endereço retornado pelo Nominatim")
 
 
 class BatchReverseGeocodingRequest(BaseModel):
-    coordinates: List[CoordinateRequest] = Field(
-        ..., 
-        description="Lista de coordenadas para buscar", 
-        max_length=100
+    coordinates: list[CoordinateRequest] = Field(
+        ...,
+        description="Lista de coordenadas para busca em lote",
+        min_length=1,
+        max_length=100,
     )
 
 
 class ReverseGeocodingResult(BaseModel):
-    query: CoordinateRequest = Field(..., description="A coordenada original consultada")
-    source: str = Field(..., description="Origem ('nominatim' ou 'error')")
-    data: Optional[Any] = Field(None, description="Dados brutos retornados pelo Nominatim")
+    query: CoordinateRequest = Field(..., description="Coordenada original consultada")
+    source: str = Field(..., description="Origem ('cache', 'nominatim' ou 'error')")
+    data: dict[str, Any] | None = Field(default=None, description="Dados brutos retornados pelo Nominatim")
 
 
 class BatchReverseGeocodingResponse(BaseModel):
-    results: List[ReverseGeocodingResult] = Field(..., description="Lista de resultados do reverse geocoding")
+    results: list[ReverseGeocodingResult] = Field(..., description="Resultados do reverse geocoding em lote")
