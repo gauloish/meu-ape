@@ -115,7 +115,7 @@ class GeocodingEnricher:
         Returns:
             pd.DataFrame: DataFrame filtrado com os registros dentro dos limites.
         """
-        self.logger.info("Filtrando amostras fora dos limites geográficos de Goiânia.")
+        logger.info("Filtrando amostras fora dos limites geográficos de Goiânia.")
 
         if "latitude" not in df.columns or "longitude" not in df.columns:
             return df
