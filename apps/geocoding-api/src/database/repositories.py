@@ -41,6 +41,7 @@ class GeocodingRepository:
         try:
             return await self.session.get(GeocodingCache, norm_addr)
         except SQLAlchemyError as e:
+            await self.session.rollback()
             logger.error(f"Error fetching address '{address}': {e}")
             raise
 
@@ -63,6 +64,7 @@ class GeocodingRepository:
             records = result.scalars().all()
             return {record.address: record for record in records}
         except SQLAlchemyError as e:
+            await self.session.rollback()
             logger.error(f"Error fetching multiple addresses: {e}")
             raise
 
@@ -148,6 +150,7 @@ class ReverseGeocodingRepository:
         try:
             return await self.session.get(ReverseGeocodingCache, key)
         except SQLAlchemyError as e:
+            await self.session.rollback()
             logger.error(f"Error fetching reverse cache for ({lat}, {lon}): {e}")
             raise
 
@@ -170,6 +173,7 @@ class ReverseGeocodingRepository:
             records = result.scalars().all()
             return {rec.coord_key: rec for rec in records}
         except SQLAlchemyError as e:
+            await self.session.rollback()
             logger.error(f"Error fetching multiple reverse cache entries: {e}")
             raise
 

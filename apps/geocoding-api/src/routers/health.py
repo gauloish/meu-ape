@@ -1,21 +1,18 @@
 import logging
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..database.session import get_db
+from ..dependencies import get_db, get_http_client
 from ..schemas import HealthResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Health"])
-
-
-def get_http_client(request: Request) -> httpx.AsyncClient:
-    return request.app.state.http_client
 
 
 @router.get(
@@ -25,10 +22,11 @@ def get_http_client(request: Request) -> httpx.AsyncClient:
     summary="Verifica se a API e suas dependências estão ativas",
 )
 async def health_check(
+    response: Response,
     db: AsyncSession = Depends(get_db),
     client: httpx.AsyncClient = Depends(get_http_client),
-) -> HealthResponse:
-    """Diagnóstico ativo da API, PostgreSQL e Nominatim."""
+) -> HealthResponse | JSONResponse:
+    """Diagnóstico ativo da API, PostgreSQL e Nominatim. Endpoint Público."""
     db_healthy = False
     nominatim_healthy = False
 
@@ -72,9 +70,9 @@ async def health_check(
     )
 
     if not db_healthy or not nominatim_healthy:
-        raise HTTPException(
+        return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=health_data.model_dump(),
+            content=health_data.model_dump(),
         )
 
     return health_data

@@ -3,11 +3,14 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from .config import settings, setup_logging
 from .database.base import Base
 from .database.engine import engine
+from .rate_limiter import limiter
 from .routers import geocoding_router, health_router
 
 setup_logging()
@@ -28,10 +31,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     app.state.http_client = client
 
-    # Verify/create DB tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        logger.info("Tabelas do banco de dados verificadas/criadas com sucesso.")
+    # Verify/create DB tables (trata indisponibilidade graciosa durante boot em ambiente local/testes)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            logger.info("Tabelas do banco de dados verificadas/criadas com sucesso.")
+    except Exception as e:
+        logger.warning(f"Não foi possível conectar ao banco de dados na inicialização: {e}")
 
     yield
 
@@ -42,16 +48,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title="API de Geocodificação em Cache",
-    description="API FastAPI com cache PostgreSQL e servidor Nominatim para geocodificação direta e reversa.",
-    version="1.0.0",
+    description="API FastAPI com cache PostgreSQL, servidor Nominatim, autenticação M2M via API Key e Rate Limiting.",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
-
-def get_http_client(request: Request) -> httpx.AsyncClient:
-    """FastAPI Dependency to get global shared httpx.AsyncClient."""
-    return request.app.state.http_client
-
+# Configura o SlowAPI Limiter globalmente
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(health_router)
 app.include_router(geocoding_router)

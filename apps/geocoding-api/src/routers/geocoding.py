@@ -8,8 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..database.models import GeocodingCache, ReverseGeocodingCache
-from ..database.repositories import GeocodingRepository, ReverseGeocodingRepository
-from ..database.session import get_db
+from ..database.repositories import (
+    GeocodingRepository,
+    ReverseGeocodingRepository,
+    normalize_address,
+)
+from ..dependencies import get_db, get_http_client
+from ..rate_limiter import limiter
 from ..schemas import (
     BatchGeocodingRequest,
     BatchGeocodingResponse,
@@ -21,15 +26,15 @@ from ..schemas import (
     ReverseGeocodingResponse,
     ReverseGeocodingResult,
 )
+from ..security import verify_api_key
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/geocoding", tags=["Geocoding"])
-
-
-def get_http_client(request: Request) -> httpx.AsyncClient:
-    """Dependency to get shared HTTP client."""
-    return request.app.state.http_client
+router = APIRouter(
+    prefix="/geocoding",
+    tags=["Geocoding"],
+    dependencies=[Depends(verify_api_key)],
+)
 
 
 @router.get(
@@ -37,7 +42,9 @@ def get_http_client(request: Request) -> httpx.AsyncClient:
     response_model=GeocodingResponse,
     summary="Busca coordenadas por endereço (com cache no PostgreSQL)",
 )
+@limiter.limit(settings.rate_limit_default)
 async def search_address(
+    request: Request,
     address: str = Query(..., description="Endereço completo para buscar"),
     db: AsyncSession = Depends(get_db),
     client: httpx.AsyncClient = Depends(get_http_client),
@@ -79,7 +86,6 @@ async def search_address(
             )
 
         first_result = data[0]
-        # O Nominatim retorna 'lat' e 'lon' como strings
         lat_val = float(first_result["lat"])
         lon_val = float(first_result["lon"])
         place_id_str = str(first_result["place_id"])
@@ -124,8 +130,10 @@ async def search_address(
     response_model=BatchGeocodingResponse,
     summary="Busca coordenadas para múltiplos endereços em lote (Concorrente com Cache)",
 )
+@limiter.limit(settings.rate_limit_batch)
 async def batch_search_address(
-    request: BatchGeocodingRequest,
+    request: Request,
+    body: BatchGeocodingRequest,
     db: AsyncSession = Depends(get_db),
     client: httpx.AsyncClient = Depends(get_http_client),
 ) -> BatchGeocodingResponse:
@@ -134,7 +142,7 @@ async def batch_search_address(
     addresses_to_fetch: list[str] = []
 
     # Desduplica mantendo a ordem original
-    unique_addresses = list(dict.fromkeys(request.addresses))
+    unique_addresses = list(dict.fromkeys(body.addresses))
 
     # 1. Consulta o cache em lote
     try:
@@ -144,7 +152,7 @@ async def batch_search_address(
         cache_map = {}
 
     for addr in unique_addresses:
-        norm_key = addr.strip().lower()
+        norm_key = normalize_address(addr)
         if norm_key in cache_map:
             cached = cache_map[norm_key]
             final_results_map[addr] = GeocodingResponse(
@@ -241,7 +249,7 @@ async def batch_search_address(
                 ),
             ),
         )
-        for addr in request.addresses
+        for addr in body.addresses
     ]
 
     return BatchGeocodingResponse(results=ordered_results)
@@ -252,7 +260,9 @@ async def batch_search_address(
     response_model=ReverseGeocodingResponse,
     summary="Busca endereço a partir de Latitude e Longitude (com cache)",
 )
+@limiter.limit(settings.rate_limit_default)
 async def reverse_geocode(
+    request: Request,
     lat: float = Query(..., description="Latitude", ge=-90.0, le=90.0),
     lon: float = Query(..., description="Longitude", ge=-180.0, le=180.0),
     db: AsyncSession = Depends(get_db),
@@ -314,20 +324,21 @@ async def reverse_geocode(
     response_model=BatchReverseGeocodingResponse,
     summary="Busca endereços a partir de múltiplas coordenadas em lote (Concorrente com Cache)",
 )
+@limiter.limit(settings.rate_limit_batch)
 async def batch_reverse_geocode(
-    request: BatchReverseGeocodingRequest,
+    request: Request,
+    body: BatchReverseGeocodingRequest,
     db: AsyncSession = Depends(get_db),
     client: httpx.AsyncClient = Depends(get_http_client),
 ) -> BatchReverseGeocodingResponse:
-    if not request.coordinates:
+    if not body.coordinates:
         return BatchReverseGeocodingResponse(results=[])
 
     rev_repo = ReverseGeocodingRepository(db)
     final_results_map: dict[str, ReverseGeocodingResult] = {}
     coords_to_fetch: list[CoordinateRequest] = []
 
-    # Extrai a lista de tuplas de coordenadas
-    coord_tuples = [(c.latitude, c.longitude) for c in request.coordinates]
+    coord_tuples = [(c.latitude, c.longitude) for c in body.coordinates]
 
     # 1. Consulta cache em lote
     try:
@@ -336,7 +347,7 @@ async def batch_reverse_geocode(
         logger.error(f"Erro ao buscar lote no cache de reverse: {e}")
         cache_map = {}
 
-    for coord in request.coordinates:
+    for coord in body.coordinates:
         key = ReverseGeocodingCache.make_key(coord.latitude, coord.longitude)
         if key in cache_map:
             cached_rec = cache_map[key]
@@ -409,7 +420,7 @@ async def batch_reverse_geocode(
             ReverseGeocodingCache.make_key(c.latitude, c.longitude),
             ReverseGeocodingResult(query=c, source="error", data=None),
         )
-        for c in request.coordinates
+        for c in body.coordinates
     ]
 
     return BatchReverseGeocodingResponse(results=ordered_results)

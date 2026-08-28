@@ -5,25 +5,31 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    postgres_user: str = Field(default="user", validation_alias="POSTGRES_USER")
-    postgres_password: str = Field(default="password", validation_alias="POSTGRES_PASSWORD")
-    postgres_host: str = Field(default="cache_db", validation_alias="POSTGRES_HOST")
-    postgres_port: int = Field(default=5432, validation_alias="POSTGRES_PORT")
-    postgres_db: str = Field(default="geocoding_database", validation_alias="POSTGRES_DB")
+    postgres_user: str = "user"
+    postgres_password: str = "password"
+    postgres_host: str = "cache_db"
+    postgres_port: int = 5432
+    postgres_db: str = "geocoding_database"
 
-    db_pool_size: int = Field(default=10, validation_alias="DB_POOL_SIZE")
-    db_max_overflow: int = Field(default=20, validation_alias="DB_MAX_OVERFLOW")
-    db_pool_recycle: int = Field(default=1800, validation_alias="DB_POOL_RECYCLE")
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
+    db_pool_recycle: int = 1800
 
-    nominatim_url: str = Field(default="http://nominatim_server:8080", validation_alias="NOMINATIM_URL")
-    user_agent: str = Field(default="GeocodingAPI/1.0", validation_alias="USER_AGENT")
+    nominatim_url: str = "http://nominatim_server:8080"
+    user_agent: str = "GeocodingAPI/1.0"
 
-    log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
+    log_level: str = "INFO"
+
+    # Security (SecOps) & Rate Limiting
+    geo_api_key: str = Field(default="geocoding_secret_key_change_me", description="Chave de API M2M")
+    rate_limit_default: str = Field(default="100/minute", description="Limite padrão para rotas unitárias")
+    rate_limit_batch: str = Field(default="20/minute", description="Limite padrão para rotas em lote")
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
+        case_sensitive=False,
     )
 
     @property
