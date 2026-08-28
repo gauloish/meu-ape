@@ -1,7 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from ..config import settings
-from .config import DATABASE_URL
 
 
 def _build_engine() -> AsyncEngine:
@@ -11,7 +10,7 @@ def _build_engine() -> AsyncEngine:
         AsyncEngine: Configured async database engine.
     """
     return create_async_engine(
-        DATABASE_URL,
+        settings.database_url,
         echo=False,
         pool_pre_ping=True,
         pool_size=settings.db_pool_size,
