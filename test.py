@@ -1,8 +1,8 @@
-from src.preprocessing.data_cleaning import DataCleaner
-from src.preprocessing.feature_extraction import FeatureExtractor
-from src.preprocessing.geocoding_enrichment import GeocodingEnricher
+from ml_core.preprocessing.data_cleaning import DataCleaner
+from ml_core.preprocessing.feature_extraction import FeatureExtractor
+from ml_core.preprocessing.geocoding_enrichment import GeocodingEnricher
 
-from src.transformers.geodesic_distance_transformer import GeodesicDistanceTransformer
+from ml_core.transformers.geodesic_distance_transformer import GeodesicDistanceTransformer
 
 from sklearn.pipeline import Pipeline
 
@@ -62,9 +62,9 @@ import sklearn
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, format="[%(asctime)s] %(levelname)s: %(message)s")
 
-    data_cleaner = DataCleaner(logger)
-    feature_extractor = FeatureExtractor(logger)
-    geocoding_enricher = GeocodingEnricher(logger)
+    data_cleaner = DataCleaner()
+    feature_extractor = FeatureExtractor()
+    geocoding_enricher = GeocodingEnricher()
 
     df = pd.read_csv("data/raw/zap_dataset.csv").iloc[:100]
 
@@ -85,13 +85,6 @@ if __name__ == "__main__":
     X = df.drop("preco", axis="columns")
     y = df["preco"]
 
-    print(X.info())
-    
-
-    pipeline.fit(X)
-
-    X_opa = pipeline.transform(X)
-
-    print(X_opa)
+    print(X[["latitude", "longitude"]].head())
 
     logger.info("Finalizing all.")
