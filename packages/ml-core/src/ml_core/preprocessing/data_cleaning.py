@@ -52,7 +52,7 @@ class DataCleaner:
             if c in df.columns
         ]
 
-        return df.drop(columns=cols_to_drop, axis="columns", errors="ignore")
+        return df.drop(columns=cols_to_drop, errors="ignore")
 
     def _drop_missing(self, df: pd.DataFrame) -> pd.DataFrame:
         """Remove registros com o preço de venda ausente (`NaN`), caso a coluna `preco` esteja presente.
@@ -125,7 +125,12 @@ class DataCleaner:
                 dtype=np.float64,
             )
 
-            extracted_data = df.filter(items=["quartos", "banheiros", "vagas", "area_m2"], axis="columns")
+            extracted_data = df.filter(items=[
+                "quartos",
+                "banheiros",
+                "vagas",
+                "area_m2"
+            ], axis="columns")
 
             title_arr = title_data.to_numpy().reshape(-1)
             extracted_arr = extracted_data.to_numpy().reshape(-1)
