@@ -1,125 +1,148 @@
-import pandas as pd
+"""Módulo de extração de características (Feature Extraction) de imóveis.
 
-from typing import List
+Extrai variáveis booleanas de comodidades (ex: piscina, academia, churrasqueira) a partir da coluna `comodidades`
+e refina a classificação do imóvel em `tipo_imovel` a partir dos textos da coluna `titulo`.
+"""
+
+import logging
+import re
 from logging import Logger
+from typing import List
+
+import pandas as pd
 
 from .constants import FEATURES_MAPPING
 
+logger = logging.getLogger(__name__)
+
 
 class FeatureExtractor:
-    def __init__(self, logger: Logger):
-        self.logger = logger
+    """Extrai novas variáveis descritivas e estruturadas a partir de campos textuais."""
+
+    def __init__(self) -> None:
+        """Inicializa o extrator de características."""
+        pass
 
     def _get_amenities_pattern(self, amenities: List[str]) -> str:
-        """Get regex pattern of amenities from amenities list
+        """Gera o padrão Regex seguro contendo as palavras-chave da comodidade, escapando caracteres especiais.
 
         Args:
-            amenities (List[str]): List of amenities
+            amenities (List[str]): Lista de palavras-chave de comodidades.
 
         Returns:
-            str: String pattern to catch amenities
+            str: Padrão Regex pronto para busca textual (ex: "Piscina|Piscina Aquecida").
         """
-        return rf"{"|".join(amenities)}"
+        escaped_amenities = [re.escape(a) for a in amenities]
+
+        return "|".join(escaped_amenities)
 
     def _extract_amenities_feature(self, df: pd.DataFrame, amenities: List[str]) -> pd.Series:
-        """Extract amenities feature from `comodidades` feature and using the given amenities
+        """Extrai uma coluna booleana indicando se o texto da coluna `comodidades` contém alguma palavra-chave.
 
         Args:
-            df (pd.DataFrame): Dataset
-            original_feature (str): Feature where the new feature will be extracted
-            amenities (List[str]): Amenities of the new feature
+            df (pd.DataFrame): DataFrame contendo a coluna `comodidades`.
+            amenities (List[str]): Lista de palavras-chave.
 
         Returns:
-            pd.Series: The new amenities feature extracted from original feature
+            pd.Series: Serie booleana indicando a presença da comodidade.
         """
+        if "comodidades" not in df.columns:
+            return pd.Series(False, index=df.index, dtype="boolean")
+
+        pattern = self._get_amenities_pattern(amenities)
+
         return (df["comodidades"]
+            .fillna("")
+            .astype(str)
             .str
-            .contains(
-                pat=self._get_amenities_pattern(amenities),
-                regex=True,
-            )
-            .fillna(False)
+            .contains(pat=pattern, regex=True, case=False)
             .astype("boolean")
         )
 
     def _extract_amenities_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Extract amenities features from `comodidades` feature
+        """Extrai todas as variáveis de comodidades mapeadas em `FEATURES_MAPPING`.
 
         Args:
-            df (pd.DataFrame): Dataset
-            original_feature (str): Feature where the new feature will be extracted
+            df (pd.DataFrame): DataFrame de entrada.
 
         Returns:
-            pd.DataFrame: The dataset updated with the new extracted amenities features
+            pd.DataFrame: DataFrame atualizado com as novas colunas de comodidade.
         """
-        self.logger.info("Extracting amenities features.")
+        logger.info("Extraindo variáveis de comodidades.")
 
-        for feature, amenities in FEATURES_MAPPING.items():
-            self.logger.info(f"Extracting amenities feature for `{feature}`.")
+        for feature_name, amenities in FEATURES_MAPPING.items():
+            logger.info(f"Extraindo comodidade para '{feature_name}'.")
 
-            df[feature] = self._extract_amenities_feature(df, amenities)
+            df[feature_name] = self._extract_amenities_feature(df, amenities)
 
-        return (df
-            .assign(
-                pets=lambda x: x[["pets", "aceita_pets"]].any(axis="columns")
-            )
-            .drop("aceita_pets", axis="columns")
-            .drop("comodidades", axis="columns")
-        )
+        if "aceita_pets" in df.columns:
+            df["pets"] = df["pets"] | df["aceita_pets"].fillna(False).astype("boolean")
+
+            df = df.drop(columns=["aceita_pets"])
+
+        if "comodidades" in df.columns:
+            df = df.drop(columns=["comodidades"])
+
+        return df
 
     def _extract_real_state_classes(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Extract classes of real state from `titulo` feature and put it
-        on registers with class `"outro"` in the feature `tipo_imovel`
+        """Extrai a categoria do imóvel da coluna `titulo` para preencher valores genéricos ('outro') em `tipo_imovel`.
 
         Args:
-            df (pd.DataFrame): Dataset
+            df (pd.DataFrame): DataFrame de entrada.
 
         Returns:
-            pd.DataFrame: Dataset with new extracted classes to feature `tipo_imovel`
+            pd.DataFrame: DataFrame com a coluna `tipo_imovel` refinada.
         """
-        self.logger.info("Extracting real state classes from feature `titulo`.")
+        if "titulo" not in df.columns or "tipo_imovel" not in df.columns:
+            return df.drop(columns=["titulo"], errors="ignore")
 
-        real_state_classes = (df["titulo"]
+        logger.info("Extraindo tipo do imóvel a partir da coluna 'titulo'.")
+
+        first_word = (df["titulo"]
+            .fillna("")
+            .astype(str)
             .str
             .split(n=1, expand=True)[0]
-            .map({
-                "Casa": "casa",
-                "Apartamento": "apartamento",
-                "Flat": "flat",
-                "Cobertura": "cobertura",
-                "Sobrado": "sobrado",
-                "Studio": "studio",
-            })
-            .fillna("outro")
         )
 
-        mask = (df["tipo_imovel"] == "outro")
-        df.loc[mask, "tipo_imovel"] = real_state_classes[mask]
+        class_mapping = {
+            "Casa": "casa",
+            "Apartamento": "apartamento",
+            "Flat": "flat",
+            "Cobertura": "cobertura",
+            "Sobrado": "sobrado",
+            "Studio": "studio",
+        }
 
-        return df.drop("titulo", axis="columns")
+        extracted_classes = first_word.map(class_mapping).fillna("outro")
+
+        mask = (df["tipo_imovel"] == "outro")
+        df.loc[mask, "tipo_imovel"] = extracted_classes[mask]
+
+        return df.drop(columns=["titulo"], errors="ignore")
 
     def _convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Convert dtypes of the dataset
+        """Converte os dtypes do DataFrame para tipos de dados nativos otimizados.
 
         Args:
-            df (pd.DataFrame): Dataset
+            df (pd.DataFrame): DataFrame de entrada.
 
         Returns:
-            pd.DataFrame: Dataset with the dtypes converted
+            pd.DataFrame: DataFrame com dtypes convertidos.
         """
         return df.convert_dtypes()
 
     def __call__(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Extract amenities features from `comodidades` and real state
-        classes from `titulo`
+        """Executa a pipeline de extração de características.
 
         Args:
-            df (pd.DataFrame): Dataset
+            df (pd.DataFrame): DataFrame de entrada.
 
         Returns:
-            pd.DataFrame: The new dataset with the new extracted features
+            pd.DataFrame: DataFrame com as novas características extraídas.
         """
-        self.logger.info("Initializing feature extraction step in the dataset.")
+        logger.info("Iniciando etapa de extração de características.")
 
         df = (df
             .pipe(self._extract_amenities_features)
@@ -127,6 +150,6 @@ class FeatureExtractor:
             .pipe(self._convert_dtypes)
         )
 
-        self.logger.info("Finalizing feature extraction step in the dataset.")
+        logger.info("Etapa de extração de características finalizada com sucesso.")
 
         return df
