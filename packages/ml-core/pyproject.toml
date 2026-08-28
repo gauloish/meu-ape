@@ -1,13 +1,21 @@
 [project]
 name = "ml-core"
 version = "0.1.0"
-description = "Add your description here"
+description = "Pacote core de Machine Learning para limpeza, extração de características e transformadores de dados imobiliários"
 readme = "README.md"
 authors = [
     { name = "gauloish", email = "125079293+gauloish@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "geocoding-client",
+    "numpy>=1.26.0",
+    "pandas>=2.2.0",
+    "scikit-learn>=1.4.0",
+]
+
+[tool.uv.sources]
+geocoding-client = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.11.18,<0.12.0"]
