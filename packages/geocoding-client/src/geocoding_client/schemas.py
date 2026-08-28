@@ -1,9 +1,23 @@
+"""Modelos de dados (DTOs) para o cliente de Geocodificação.
+
+Define os esquemas Pydantic V2 utilizados na serialização, validação e desserialização
+das requisições e respostas trocadas com a API interna de Geocodificação.
+"""
+
 from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class GeocodingData(BaseModel):
-    """Dados de geocodificação retornados pela API."""
+    """Atributos detalhados do resultado de geocodificação direta.
+
+    Attributes:
+        place_id (str): Identificador único do local no servidor Nominatim.
+        address (str): Endereço de busca original submetido na requisição.
+        latitude (float): Latitude geográfica da localização.
+        longitude (float): Longitude geográfica da localização.
+        formatted_address (str): Endereço formatado e padronizado retornado pela API.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -15,7 +29,12 @@ class GeocodingData(BaseModel):
 
 
 class GeocodingResponse(BaseModel):
-    """Resposta de busca de endereço por geocodificação direta."""
+    """Objeto de resposta para consulta de geocodificação direta individual.
+
+    Attributes:
+        source (str): Origem da informação ('cache', 'nominatim' ou 'error').
+        data (GeocodingData): Dados detalhados de geocodificação.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -24,7 +43,11 @@ class GeocodingResponse(BaseModel):
 
 
 class BatchGeocodingRequest(BaseModel):
-    """Payload de requisição em lote para geocodificação direta."""
+    """Corpo da requisição para geocodificação direta em lote (batch).
+
+    Attributes:
+        addresses (list[str]): Lista com os endereços textuais para consulta.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -32,7 +55,11 @@ class BatchGeocodingRequest(BaseModel):
 
 
 class BatchGeocodingResponse(BaseModel):
-    """Resposta em lote para geocodificação direta."""
+    """Resposta contendo os resultados da geocodificação direta em lote.
+
+    Attributes:
+        results (list[GeocodingResponse]): Lista de respostas correspondentes na mesma ordem solicitada.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -40,7 +67,12 @@ class BatchGeocodingResponse(BaseModel):
 
 
 class CoordinateRequest(BaseModel):
-    """Coordenada geográfica para consulta."""
+    """Representação de uma coordenada geográfica de entrada.
+
+    Attributes:
+        latitude (float): Latitude entre -90.0 e 90.0.
+        longitude (float): Longitude entre -180.0 e 180.0.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -49,7 +81,12 @@ class CoordinateRequest(BaseModel):
 
 
 class ReverseGeocodingResponse(BaseModel):
-    """Resposta de geocodificação reversa."""
+    """Objeto de resposta para consulta de geocodificação reversa individual.
+
+    Attributes:
+        source (str): Origem do dado ('cache' ou 'nominatim').
+        data (dict[str, Any]): Dicionário com os atributos de endereço retornados pelo Nominatim.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -58,7 +95,11 @@ class ReverseGeocodingResponse(BaseModel):
 
 
 class BatchReverseGeocodingRequest(BaseModel):
-    """Payload de requisição em lote para geocodificação reversa."""
+    """Corpo da requisição para geocodificação reversa em lote (batch).
+
+    Attributes:
+        coordinates (list[CoordinateRequest]): Lista de coordenadas a serem consultadas.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,7 +107,13 @@ class BatchReverseGeocodingRequest(BaseModel):
 
 
 class ReverseGeocodingResult(BaseModel):
-    """Resultado individual de um item na geocodificação reversa em lote."""
+    """Resultado individual de um item na geocodificação reversa em lote.
+
+    Attributes:
+        query (CoordinateRequest): Coordenada original enviada na consulta.
+        source (str): Origem do resultado ('cache', 'nominatim' ou 'error').
+        data (dict[str, Any] | None): Dicionário com o endereço retornado ou None se não encontrado.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -76,7 +123,11 @@ class ReverseGeocodingResult(BaseModel):
 
 
 class BatchReverseGeocodingResponse(BaseModel):
-    """Resposta em lote para geocodificação reversa."""
+    """Resposta contendo os resultados da geocodificação reversa em lote.
+
+    Attributes:
+        results (list[ReverseGeocodingResult]): Lista de resultados ordenados.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -84,7 +135,14 @@ class BatchReverseGeocodingResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    """Status de saúde da API de Geocodificação."""
+    """Diagnóstico do estado de saúde da API e suas dependências.
+
+    Attributes:
+        status (str): Status global da aplicação ('online', 'degraded', 'offline').
+        message (str): Descrição informativa do estado da API.
+        database (bool): Indicador de conectividade com o banco de dados PostgreSQL.
+        nominatim (bool): Indicador de conectividade com o servidor Nominatim.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -34,7 +34,22 @@ logger = logging.getLogger(__name__)
 
 
 class GeocodingClient:
-    """Cliente assíncrono moderno para consumo da API interna de Geocodificação."""
+    """Cliente HTTP assíncrono para consumo da API interna de Geocodificação.
+
+    Fornece interface para geocodificação direta, reversa e operações em lote (batch),
+    com suporte nativo a autenticação M2M via cabeçalho `X-API-Key` e resiliência
+    a limites de taxa (Rate Limit) através de Exponential Backoff.
+
+    Attributes:
+        settings (ClientSettings): Instância de configurações do cliente.
+        base_url (str): URL base da API de Geocodificação.
+        api_key (str): Chave de autenticação M2M utilizada nas requisições.
+
+    Example:
+        >>> async with GeocodingClient() as client:
+        ...     res = await client.geocode("Avenida Anhanguera, Goiânia")
+        ...     print(res.data.latitude, res.data.longitude)
+    """
 
     def __init__(
         self,
@@ -43,7 +58,17 @@ class GeocodingClient:
         settings: ClientSettings | None = None,
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
-        """Inicializa o cliente com parâmetros customizados ou variáveis de ambiente (GEO_API_URL, GEO_API_KEY)."""
+        """Inicializa a instância do GeocodingClient.
+
+        Args:
+            base_url (str | None): URL base da API (ex: 'http://localhost:8000').
+                Se omitido, utiliza o valor da variável de ambiente GEO_API_URL.
+            api_key (str | None): Chave M2M enviada no cabeçalho X-API-Key.
+                Se omitido, utiliza o valor da variável de ambiente GEO_API_KEY.
+            settings (ClientSettings | None): Instância customizada de configurações.
+            http_client (httpx.AsyncClient | None): Cliente HTTP assíncrono customizado.
+                Caso seja fornecido, o ciclo de vida do cliente será mantido externamente.
+        """
         self.settings = settings or default_settings
         self.base_url = (base_url or self.settings.geo_api_url).rstrip("/")
         self.api_key = api_key or self.settings.geo_api_key
@@ -62,18 +87,35 @@ class GeocodingClient:
         )
 
     async def __aenter__(self) -> Self:
+        """Entra no contexto assíncrono do cliente."""
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Encerra o contexto assíncrono fechando as conexões HTTP."""
         await self.close()
 
     async def close(self) -> None:
-        """Encerra a sessão do cliente HTTP se ela tiver sido criada internamente."""
+        """Encerra a sessão do cliente HTTP assíncrono interno.
+
+        Se o cliente HTTP foi fornecido externamente na inicialização, esta função
+        não encerrará a sessão externa.
+        """
         if not self._external_client and not self._http_client.is_closed:
             await self._http_client.aclose()
 
     def _handle_response_error(self, response: httpx.Response) -> None:
-        """Mapeia códigos de erro HTTP para exceções fortemente tipadas."""
+        """Mapeia os códigos de status HTTP de erro para exceções fortemente tipadas.
+
+        Args:
+            response (httpx.Response): Objeto de resposta HTTP retornado pelo servidor.
+
+        Raises:
+            AuthenticationError: Se o código de status for 401 (API Key inválida/ausente).
+            AddressNotFound: Se o código de status for 404 (Endereço não localizado).
+            RateLimitExceeded: Se o código de status for 429 (Limite de requisições excedido).
+            ServerError: Se o código de status for 500, 502, 503 ou 504.
+            GeoAPIError: Para qualquer outro status HTTP de erro não específico.
+        """
         if response.is_success:
             return
 
@@ -99,7 +141,24 @@ class GeocodingClient:
             raise GeoAPIError(message, status_code=status_code, response_data=body)
 
     async def _request_with_backoff(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        """Executa a requisição HTTP aplicando Exponential Backoff em caso de RateLimit ou indisponibilidade temporária."""
+        """Executa uma requisição HTTP aplicando Exponential Backoff com jitter.
+
+        Apenas exceções temporárias (RateLimitExceeded, ServerError, HTTPConnectionError)
+        são retentadas até o limite estipulado em `self.settings.max_retries`.
+
+        Args:
+            method (str): Método HTTP ('GET', 'POST', etc.).
+            url (str): Endpoint relativo ou URL de destino.
+            **kwargs (Any): Argumentos adicionais repassados para `httpx.AsyncClient.request`.
+
+        Returns:
+            httpx.Response: Resposta HTTP de sucesso (status 2xx).
+
+        Raises:
+            RateLimitExceeded: Se o limite de retentativas for atingido sob 429.
+            ServerError: Se o servidor persistir em erro 5xx após as retentativas.
+            HTTPConnectionError: Se a conexão física falhar consecutivamente.
+        """
         retrier = AsyncRetrying(
             stop=stop_after_attempt(self.settings.max_retries),
             wait=wait_exponential_jitter(initial=self.settings.backoff_factor, max=30.0),
@@ -115,12 +174,14 @@ class GeocodingClient:
                     return response
                 except httpx.RequestError as exc:
                     logger.warning(
-                        f"Falha de conexão com a API de Geocodificação: {exc}. Tentativa {attempt.retry_state.attempt_number} de {self.settings.max_retries}"
+                        f"Falha de conexão com a API de Geocodificação: {exc}. "
+                        f"Tentativa {attempt.retry_state.attempt_number} de {self.settings.max_retries}"
                     )
                     raise HTTPConnectionError(f"Erro de conexão HTTP: {exc}") from exc
                 except (RateLimitExceeded, ServerError) as exc:
                     logger.warning(
-                        f"Requisição falhou com status temporário ({exc.status_code}): {exc.message}. Tentativa {attempt.retry_state.attempt_number} de {self.settings.max_retries}"
+                        f"Requisição falhou com status temporário ({exc.status_code}): {exc.message}. "
+                        f"Tentativa {attempt.retry_state.attempt_number} de {self.settings.max_retries}"
                     )
                     raise
 
@@ -131,46 +192,77 @@ class GeocodingClient:
     # -------------------------------------------------------------------------
 
     async def health_check(self) -> HealthResponse:
-        """Verifica o status de saúde da API e suas dependências."""
+        """Consulta o endpoint de saúde e diagnóstico ativo da API de Geocodificação.
+
+        Returns:
+            HealthResponse: Objeto contendo o status global ('online', 'degraded', 'offline')
+                e os diagnósticos individuais da base PostgreSQL e do servidor Nominatim.
+
+        Raises:
+            GeoAPIError: Caso a resposta da API não seja um JSON válido de diagnóstico.
+        """
         response = await self._http_client.get("/health")
         if response.status_code not in (200, 503):
             self._handle_response_error(response)
         return HealthResponse.model_validate(response.json())
 
     async def geocode(self, address: str) -> GeocodingResponse:
-        """Converte um endereço completo em coordenadas geográficas.
+        """Converte um endereço textual completo em coordenadas geográficas (Latitude e Longitude).
 
         Args:
-            address: Endereço completo para geocodificação.
+            address (str): Endereço residencial ou comercial completo.
 
         Returns:
-            GeocodingResponse: Coordenadas e dados de endereço.
+            GeocodingResponse: Dados com coordenadas, endereço formatado e origem do resultado ('cache' ou 'nominatim').
+
+        Raises:
+            AuthenticationError: Se a API Key fornecida for inválida (HTTP 401).
+            AddressNotFound: Se o endereço não for localizado (HTTP 404).
+            RateLimitExceeded: Se o limite de taxa for ultrapassado e as retentativas esgotarem (HTTP 429).
+            ServerError: Se a API interna ou o Nominatim falharem (HTTP 5xx).
+
+        Example:
+            >>> result = await client.geocode("Avenida Anhanguera, Goiânia")
+            >>> print(result.data.latitude, result.data.longitude)
         """
         response = await self._request_with_backoff("GET", "/geocoding/search", params={"address": address})
         return GeocodingResponse.model_validate(response.json())
 
     async def batch_geocode(self, addresses: list[str]) -> BatchGeocodingResponse:
-        """Geocodifica múltiplos endereços em lote com resiliência a Rate Limit.
+        """Geocodifica múltiplos endereços em lote através de única requisição otimizada.
+
+        Aplica retentativa automática com Exponential Backoff para garantir que a requisição
+        em lote não falhe devido a limitações temporárias de taxa.
 
         Args:
-            addresses: Lista de strings com os endereços.
+            addresses (list[str]): Lista contendo os endereços a serem geocodificados.
 
         Returns:
-            BatchGeocodingResponse: Lista de resultados na mesma ordem da requisição.
+            BatchGeocodingResponse: Resposta em lote mantendo a mesma ordem original da lista.
+
+        Raises:
+            AuthenticationError: Se a API Key for inválida (HTTP 401).
+            RateLimitExceeded: Se o limite de requisições em lote for excedido (HTTP 429).
+            ServerError: Se ocorrer erro na API ou infraestrutura (HTTP 5xx).
         """
         payload = BatchGeocodingRequest(addresses=addresses).model_dump()
         response = await self._request_with_backoff("POST", "/geocoding/search/batch", json=payload)
         return BatchGeocodingResponse.model_validate(response.json())
 
     async def reverse_geocode(self, latitude: float, longitude: float) -> ReverseGeocodingResponse:
-        """Converte coordenadas geográficas (Latitude e Longitude) em endereço.
+        """Realiza a geocodificação reversa, convertendo Latitude e Longitude em endereço completo.
 
         Args:
-            latitude: Latitude (-90 a 90).
-            longitude: Longitude (-180 a 180).
+            latitude (float): Latitude da coordenada (-90.0 a 90.0).
+            longitude (float): Longitude da coordenada (-180.0 a 180.0).
 
         Returns:
-            ReverseGeocodingResponse: Dados do endereço encontrado.
+            ReverseGeocodingResponse: Dados do endereço encontrado e atributos detalhados.
+
+        Raises:
+            AuthenticationError: Se a API Key for inválida (HTTP 401).
+            AddressNotFound: Se nenhum endereço for localizado para o ponto informado (HTTP 404).
+            RateLimitExceeded: Se o limite de requisições for excedido (HTTP 429).
         """
         params = {"lat": latitude, "lon": longitude}
         response = await self._request_with_backoff("GET", "/geocoding/reverse", params=params)
@@ -179,13 +271,18 @@ class GeocodingClient:
     async def batch_reverse_geocode(
         self, coordinates: list[CoordinateRequest | tuple[float, float]]
     ) -> BatchReverseGeocodingResponse:
-        """Geocodifica múltiplas coordenadas geográficas em lote.
+        """Realiza a geocodificação reversa em lote para uma lista de coordenadas.
 
         Args:
-            coordinates: Lista de objetos CoordinateRequest ou tuplas (latitude, longitude).
+            coordinates (list[CoordinateRequest | tuple[float, float]]): Lista de objetos
+                CoordinateRequest ou tuplas `(latitude, longitude)`.
 
         Returns:
-            BatchReverseGeocodingResponse: Resultados ordenados.
+            BatchReverseGeocodingResponse: Lista de resultados na ordem exata solicitada.
+
+        Raises:
+            AuthenticationError: Se a API Key for inválida (HTTP 401).
+            RateLimitExceeded: Se o limite de requisições for excedido (HTTP 429).
         """
         coord_objects = [
             c if isinstance(c, CoordinateRequest) else CoordinateRequest(latitude=c[0], longitude=c[1])
@@ -200,19 +297,48 @@ class GeocodingClient:
     # -------------------------------------------------------------------------
 
     def geocode_sync(self, address: str) -> GeocodingResponse:
-        """Versão síncrona de geocode."""
+        """Versão síncrona do método `geocode`.
+
+        Args:
+            address (str): Endereço completo para busca.
+
+        Returns:
+            GeocodingResponse: Dados de geocodificação direta.
+        """
         return asyncio.run(self.geocode(address))
 
     def batch_geocode_sync(self, addresses: list[str]) -> BatchGeocodingResponse:
-        """Versão síncrona de batch_geocode."""
+        """Versão síncrona do método `batch_geocode`.
+
+        Args:
+            addresses (list[str]): Lista de endereços.
+
+        Returns:
+            BatchGeocodingResponse: Resultados em lote.
+        """
         return asyncio.run(self.batch_geocode(addresses))
 
     def reverse_geocode_sync(self, latitude: float, longitude: float) -> ReverseGeocodingResponse:
-        """Versão síncrona de reverse_geocode."""
+        """Versão síncrona do método `reverse_geocode`.
+
+        Args:
+            latitude (float): Latitude.
+            longitude (float): Longitude.
+
+        Returns:
+            ReverseGeocodingResponse: Endereço retornado.
+        """
         return asyncio.run(self.reverse_geocode(latitude, longitude))
 
     def batch_reverse_geocode_sync(
         self, coordinates: list[CoordinateRequest | tuple[float, float]]
     ) -> BatchReverseGeocodingResponse:
-        """Versão síncrona de batch_reverse_geocode."""
+        """Versão síncrona do método `batch_reverse_geocode`.
+
+        Args:
+            coordinates (list[CoordinateRequest | tuple[float, float]]): Lista de coordenadas.
+
+        Returns:
+            BatchReverseGeocodingResponse: Resultados ordenados.
+        """
         return asyncio.run(self.batch_reverse_geocode(coordinates))
