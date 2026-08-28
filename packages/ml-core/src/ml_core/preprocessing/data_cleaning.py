@@ -1,143 +1,169 @@
+"""Módulo de limpeza de dados imobiliários.
+
+Executa a remoção de registros duplicados, remoção de colunas irrelevantes para predição,
+higienização de registros sem preço, padronização de classes categóricas e conversão de dtypes.
+"""
+
+import logging
+from logging import Logger
+
 import numpy as np
 import pandas as pd
 
-from logging import Logger
-
 from .constants import UNUSED_FEATURES
+
+logger = logging.getLogger(__name__)
 
 
 class DataCleaner:
-    def __init__(self, logger: Logger):
-        self.logger = logger
+    """Higieniza o DataFrame bruto extraído do scraping de imóveis."""
+
+    def __init__(self) -> None:
+        """Inicializa o limpador de dados."""
+        pass
 
     def _drop_duplicates(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Drop duplicated registers in dataset
+        """Remove registros totalmente duplicados do conjunto de dados.
 
         Args:
-            df (pd.DataFrame): Dataset
+            df (pd.DataFrame): DataFrame de entrada.
 
         Returns:
-            pd.DataFrame: Dataset with duplicated register dropped
+            pd.DataFrame: DataFrame sem registros duplicados.
         """
-        self.logger.info("Removing duplicated registers from dataset.")
+        logger.info("Removendo registros duplicados do conjunto de dados.")
 
-        return df.drop_duplicates(
-            keep="first",
-            ignore_index=True,
-        )
+        return df.drop_duplicates(keep="first", ignore_index=True)
 
     def _drop_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Drop feature that does not is available in inference
-        step or that is not relevant for prediction
+        """Remove colunas que não estão disponíveis no momento da inferência ou que são irrelevantes.
 
         Args:
-            df (pd.DataFrame): Dataset
+            df (pd.DataFrame): DataFrame de entrada.
 
         Returns:
-            pd.DataFrame: Dataset with the not used features droped
+            pd.DataFrame: DataFrame sem as colunas não utilizadas.
         """
-        self.logger.info(f"Removing unused features from dataset (features {UNUSED_FEATURES}).")
+        logger.info(f"Removendo colunas não utilizadas: {UNUSED_FEATURES}.")
 
-        return df.drop(
-            labels=UNUSED_FEATURES,
-            axis="columns",
-            errors="ignore"
-        )
-    
+        cols_to_drop = [
+            c
+            for c in UNUSED_FEATURES
+            if c in df.columns
+        ]
+
+        return df.drop(columns=cols_to_drop, axis="columns", errors="ignore")
+
     def _drop_missing(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Drop registers with missing real state pricing
+        """Remove registros com o preço de venda ausente (`NaN`), caso a coluna `preco` esteja presente.
 
         Args:
-            df (pd.DataFrame): Dataset
+            df (pd.DataFrame): DataFrame de entrada.
 
         Returns:
-            pd.DataFrame: Dataset with registers without prices droped
+            pd.DataFrame: DataFrame filtrado.
         """
-        self.logger.info("Removing register with missing real state pricing.")
+        if "preco" not in df.columns:
+            logger.info("Coluna 'preco' não encontrada. Etapa de remoção por falta de preço ignorada.")
+            return df
+
+        logger.info("Removendo registros sem informação de preço ('preco').")
 
         return (df
-            .dropna(subset="preco")
+            .dropna(subset=["preco"])
             .reset_index(drop=True)
         )
 
     def _rename_classes(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Rename classes of some categorical features
+        """Padroniza os nomes das categorias da variável `tipo_imovel`.
 
         Args:
-            df (pd.DataFrame): Dataset
+            df (pd.DataFrame): DataFrame de entrada.
 
         Returns:
-            pd.DataFrame: Dataset with the classes renamed
+            pd.DataFrame: DataFrame com as categorias traduzidas/padronizadas.
         """
-        self.logger.info("Renaming classes of categorical features.")
+        if "tipo_imovel" not in df.columns:
+            return df
 
-        return df.assign(
-            tipo_imovel=lambda x: x["tipo_imovel"].map({
-                "House": "casa",
-                "Apartment": "apartamento",
-                "Place": "outro",
-            })
-        )
+        logger.info("Padronizando categorias da coluna 'tipo_imovel'.")
+
+        mapping = {
+            "House": "casa",
+            "Apartment": "apartamento",
+            "Place": "outro",
+        }
+
+        df["tipo_imovel"] = df["tipo_imovel"].map(lambda val: mapping.get(val, val))
+
+        return df
 
     def _validate_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Show in logs the percentage of valid data between title data and
-        extracted data
+        """Calcula e exibe nos logs o percentual de consistência entre a coluna `titulo` e dados extraídos.
 
         Args:
-            df (pd.DataFrame): Dataset
+            df (pd.DataFrame): DataFrame de entrada.
 
         Returns:
-            pd.DataFrame: Same dataset
+            pd.DataFrame: O mesmo DataFrame recebido.
         """
-        title_data = pd.DataFrame({
-            "quartos": df["titulo"].str.extract(r"(?P<quarto>\d+) quarto[s]")["quarto"],
-            "banheiros": df["titulo"].str.extract(r"(?P<banheiro>\d+) banheiro[s]")["banheiro"],
-            "vagas": df["titulo"].str.extract(r"(?P<vaga>\d+) vaga[s]")["vaga"],
-            "area_m2": df["titulo"].str.extract(r"(?P<area>\d+) m²")["area"],
-        }, dtype=np.float64)
+        if "titulo" not in df.columns:
+            return df
 
-        extracted_data = df.filter(items=[
-            "quartos",
-            "banheiros",
-            "vagas",
-            "area_m2"
-        ], axis="columns")
+        logger.info("Validando consistência entre a coluna 'titulo' e características extraídas.")
 
-        title_data = title_data.values.reshape(-1)
-        extracted_data = extracted_data.values.reshape(-1)
-        notna_mask = pd.Series(title_data).notna()
+        try:
+            titulo_str = df["titulo"].fillna("").astype(str)
 
-        correct_count = (title_data[notna_mask] == extracted_data[notna_mask]).sum()
-        total_count = notna_mask.sum()
-        error_percentage = 100*correct_count / total_count
+            title_data = pd.DataFrame(
+                {
+                    "quartos": titulo_str.str.extract(r"(?P<quarto>\d+) quarto[s]?")["quarto"],
+                    "banheiros": titulo_str.str.extract(r"(?P<banheiro>\d+) banheiro[s]?")["banheiro"],
+                    "vagas": titulo_str.str.extract(r"(?P<vaga>\d+) vaga[s]?")["vaga"],
+                    "area_m2": titulo_str.str.extract(r"(?P<area>\d+) m²")["area"],
+                },
+                dtype=np.float64,
+            )
 
-        self.logger.info(f"Percentage of valid data between title and extracted data: {error_percentage:.2f}%.")
+            extracted_data = df.filter(items=["quartos", "banheiros", "vagas", "area_m2"], axis="columns")
+
+            title_arr = title_data.to_numpy().reshape(-1)
+            extracted_arr = extracted_data.to_numpy().reshape(-1)
+            notna_mask = pd.Series(title_arr).notna().to_numpy()
+
+            if notna_mask.sum() > 0:
+                correct_count = (title_arr[notna_mask] == extracted_arr[notna_mask]).sum()
+                total_count = notna_mask.sum()
+                accuracy_pct = 100.0 * (correct_count / total_count)
+
+                logger.info(f"Percentual de consistência dos dados do título: {accuracy_pct:.2f}%.")
+
+        except Exception as exc:
+            logger.warning(f"Não foi possível validar consistência dos dados do título: {exc}")
 
         return df
 
     def _convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Convert dtypes of the dataset
+        """Converte os dtypes do DataFrame para tipos de dados nativos otimizados.
 
         Args:
-            df (pd.DataFrame): Dataset
+            df (pd.DataFrame): DataFrame de entrada.
 
         Returns:
-            pd.DataFrame: Dataset with the dtypes converted
+            pd.DataFrame: DataFrame com dtypes convertidos.
         """
         return df.convert_dtypes()
 
     def __call__(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Cleaning dataset, removing duplicated registers,
-        unused features, renaming classes, validating data
-        and converting dtypes
+        """Executa a pipeline completa de limpeza de dados.
 
         Args:
-            df (pd.DataFrame): Extracted dataset from web data
+            df (pd.DataFrame): DataFrame de entrada bruto.
 
         Returns:
-            pd.DataFrame: Cleaned dataset
+            pd.DataFrame: DataFrame higienizado.
         """
-        self.logger.info("Initializing cleaning step in the dataset.")
+        logger.info("Iniciando pipeline de limpeza dos dados.")
 
         df = (df
             .pipe(self._drop_duplicates)
@@ -148,6 +174,6 @@ class DataCleaner:
             .pipe(self._convert_dtypes)
         )
 
-        self.logger.info("Finalizing cleaning step in the dataset.")
+        logger.info("Pipeline de limpeza finalizada com sucesso.")
 
         return df
