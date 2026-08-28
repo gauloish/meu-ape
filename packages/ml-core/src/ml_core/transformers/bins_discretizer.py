@@ -1,102 +1,110 @@
+"""Transformador de discretização em intervalos (BinsDiscretizer).
+
+Discretiza variáveis contínuas em categorias discretas (faixas de valores).
+"""
+
+from typing import Any, List, Self, Tuple
+
+import numpy as np
 import pandas as pd
-
-from typing import Any, List, Tuple
-
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
 
-
 class BinsDiscretizer(TransformerMixin, BaseEstimator):
+    """Transformador scikit-learn para discretização de variáveis contínuas em intervalos pré-definidos.
+
+    Atributos:
+        bins_info (List[Tuple[str, List[float], List[str]]]): Lista de tuplas contendo
+            (nome_da_coluna, lista_de_limites_dos_intervalos, lista_de_rótulos).
+        prefix (str): Prefixo do nome das novas colunas categóricas. Padrão: 'faixa_'.
+
+    Example:
+        >>> bins_info = [("area_m2", [0, 50, 100, float("inf")], ["pequeno", "medio", "grande"])]
+        >>> discretizer = BinsDiscretizer(bins_info=bins_info)
+        >>> df_binned = discretizer.fit_transform(df)
+    """
+
     def __init__(
         self,
         bins_info: List[Tuple[str, List[float], List[str]]],
         prefix: str = "faixa_",
     ) -> None:
-        """Initialize bins discretizer, is that, a transformer that divide
-        the variable in a category variable, discretizing it.
+        """Inicializa o discretizador de intervalos.
 
         Args:
-            bins_info (List[Tuple[str, List[float], List[str]]]): Information of
-            the bins, a list of variables to discretize with the name of the variable,
-            the bins and the category of each bin.
-            prefix (str, optional): Prefix of the name of the new features. Defaults to "faixa_".
+            bins_info (List[Tuple[str, List[float], List[str]]]): Informações sobre os limites e rótulos de cada coluna.
+            prefix (str): Prefixo do nome da nova coluna gerada. Padrão: 'faixa_'.
         """
         self.bins_info: List[Tuple[str, List[float], List[str]]] = bins_info
         self.prefix: str = prefix
 
-    def fit(self, X: pd.DataFrame, y=None):
-        """Fit the data.
+    def fit(self, X: pd.DataFrame, y: Any = None) -> Self:
+        """Valida as colunas necessárias e marca o transformador como ajustado.
 
         Args:
-            X (pd.DataFrame): Original dataset
-            y (None, optional): Ignored. Defaults to None.
+            X (pd.DataFrame): DataFrame de entrada.
+            y (Any, optional): Ignorado.
 
         Returns:
-            Self: Self
+            Self: Instância do próprio transformador.
         """
+        self._validate_input(X)
+
+        self.n_features_in_ = X.shape[1]
+        self.feature_names_in_ = np.array(X.columns, dtype=object)
         self._is_fitted = True
 
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Create the new category features discretizing
-        continuous features from dataset.
+        """Cria as novas colunas categóricas aplicando a discretização `pd.cut`.
 
         Args:
-            X (pd.DataFrame): Original dataset
+            X (pd.DataFrame): DataFrame de entrada.
 
         Returns:
-            pd.DataFrame: Updated dataset with the
-            new category features.
+            pd.DataFrame: DataFrame acrescido das colunas discretizadas.
         """
         check_is_fitted(self)
         self._validate_input(X)
 
-        X = X.copy()
+        X_out = X.copy()
 
-        for feature, bins, labels in self.bins_info:
-            name = f"{self.prefix}{feature}"
+        for feature_name, bins, labels in self.bins_info:
+            new_col_name = f"{self.prefix}{feature_name}"
 
-            X[name] = pd.cut(
-                X[feature],
+            X_out[new_col_name] = pd.cut(
+                X_out[feature_name],
                 bins=bins,
-                labels=labels
+                labels=labels,
+                include_lowest=True,
             )
 
-        return X
+        return X_out
 
     def _validate_input(self, X: pd.DataFrame | Any) -> None:
-        """Check if the input is valid, that is, if the input is 
-        a pandas DataFrame and if it have the features in given
-        bins_info.
+        """Valida se a entrada é um DataFrame e se contém todas as colunas listadas em `bins_info`.
 
         Args:
-            X (pd.DataFrame | Any): Original dataset.
+            X (pd.DataFrame | Any): Objeto de entrada.
 
         Raises:
-            TypeError: Throw if the input is not a pandas DataFrame.
-            ValueError: Throw if are missing features.
-        """ 
+            TypeError: Se a entrada não for um pandas DataFrame.
+            ValueError: Se faltarem colunas de entrada.
+        """
         if not isinstance(X, pd.DataFrame):
-            raise TypeError(
-                f"{self.__class__.__name__} expects a pandas.DataFrame, "
-                f"but received a {type(X).__name__}."
-            )
+            raise TypeError(f"{self.__class__.__name__} espera um pandas.DataFrame, mas recebeu {type(X).__name__}.")
 
         missing = []
-
+        
         for info in self.bins_info:
             if info[0] not in X.columns:
                 missing.append(info[0])
 
-        if len(missing) != 0:
-            raise ValueError(
-                f"Missing features: {sorted(missing)}"
-            )
+        if missing:
+            raise ValueError(f"Colunas obrigatórias ausentes no DataFrame: {sorted(set(missing))}")
 
-    def __sklearn_is_fitted__(self):
-        """
-        Check fitted status and return a Boolean value.
-        """
+    def __sklearn_is_fitted__(self) -> bool:
+        """Verifica se o transformador foi ajustado."""
         return hasattr(self, "_is_fitted") and self._is_fitted
