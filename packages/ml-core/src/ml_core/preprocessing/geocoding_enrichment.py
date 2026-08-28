@@ -5,8 +5,7 @@ para converter endereços em coordenadas de latitude e longitude de forma vetori
 """
 
 import logging
-from logging import Logger
-from typing import Dict, Tuple
+from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -157,5 +156,5 @@ class GeocodingEnricher:
         )
 
         logger.info("Etapa de enriquecimento geográfico concluída com sucesso.")
-        
+
         return df
