@@ -1,19 +1,20 @@
+"""Módulo de enriquecimento de dados imobiliários por geocodificação.
+
+Utiliza a API interna de Geocodificação através do pacote `geocoding-client`
+para converter endereços em coordenadas de latitude e longitude de forma vetorizada.
+"""
+
+import logging
+from logging import Logger
+from typing import Dict, Tuple
+
 import numpy as np
 import pandas as pd
+from geocoding_client import GeocodingClient
 
-from logging import Logger
-from typing import List, Dict
+logger = logging.getLogger(__name__)
 
-from ..services.geocoder import (
-    GeocodingFeatures,
-    Geocoder,
-)
-
-GEOCODING_FEATURES_DEFAULT: GeocodingFeatures = GeocodingFeatures(
-    latitude=np.nan,
-    longitude=np.nan,
-)
-
+# Limites geográficos padrão para o município de Goiânia - GO
 MIN_LATITUDE: float = -16.85
 MAX_LATITUDE: float = -16.55
 
@@ -22,114 +23,132 @@ MAX_LONGITUDE: float = -49.15
 
 
 class GeocodingEnricher:
-    def __init__(self, logger: Logger):
-        self.logger: Logger = logger
-        self.geocoded_addresses: Dict[str, GeocodingFeatures] = dict()
+    """Enriquece o DataFrame de imóveis com coordenadas geográficas de latitude e longitude.
+
+    Atributos:
+        client (GeocodingClient): Instância do cliente HTTP da API de Geocodificação.
+    """
+
+    def __init__(self) -> None:
+        """Inicializa o enriquecedor de dados geográficos."""
+        self.client: GeocodingClient = GeocodingClient()
 
     def _get_address_feature(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Get complete address feature to use in geocoding step
+        """Combina as colunas `rua` e `bairro` em um campo de endereço completo.
 
         Args:
-            df (pd.DataFrame): Dataset
+            df (pd.DataFrame): DataFrame de entrada contendo `rua` e `bairro`.
 
         Returns:
-            pd.Series: Complete address feature
+            pd.DataFrame: DataFrame atualizado com a coluna temporária `endereco`.
         """
-        self.logger.info("Generating address feature.")
+        logger.info("Gerando coluna de endereço completo para geocodificação.")
 
-        rua = df["rua"].fillna("")
-        bairro = df["bairro"].fillna("")
+        rua = (
+            df["rua"].fillna("").astype(str).str.strip()
+            if "rua" in df.columns
+            else pd.Series("", index=df.index)
+        )
 
-        df["endereco"] = rua + ", " + bairro
+        bairro = (
+            df["bairro"].fillna("").astype(str).str.strip()
+            if "bairro" in df.columns
+            else pd.Series("", index=df.index)
+        )
+
+        df["endereco"] = (rua + ", " + bairro).str.strip(", ")
 
         return df
 
-    def _create_geocoded_features(self, register: pd.Series) -> pd.Series:
-        """Create the geocoded features
-
-        Args:
-            register (pd.Series): Register of the dataset
-
-        Returns:
-            pd.Series: Register updated with `latitude` and `longitude` features
-        """
-        if isinstance(register["endereco"], str):
-            coordinates = self.geocoded_addresses.get(
-                register["endereco"],
-                GEOCODING_FEATURES_DEFAULT
-            )
-        else:
-            coordinates = GEOCODING_FEATURES_DEFAULT
-
-        result = pd.Series()
-
-        result["latitude"] = coordinates.latitude
-        result["longitude"] = coordinates.longitude
-
-        return result
-
     def _extract_geocoded_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Extract geocoded features from `rua` and `bairro` features
+        """Extrai coordenadas de latitude e longitude para os endereços do DataFrame de forma vetorizada.
 
         Args:
-            df (pd.DataFrame): Dataset
+            df (pd.DataFrame): DataFrame de entrada.
 
         Returns:
-            pd.DataFrame: Dataset with new extracted features `latitude` and `longitude`
+            pd.DataFrame: DataFrame enriquecido com `latitude` e `longitude`, removendo `endereco`.
         """
-        self.logger.info("Enriching the dataset with geocoded features.")
+        logger.info("Enriquecendo o conjunto de dados com coordenadas geográficas.")
 
         df = self._get_address_feature(df)
 
-        geocoder = Geocoder(self.logger)
-        addresses = list(df["endereco"].dropna().unique())
+        valid_addresses = [
+            addr
+            for addr in df["endereco"].dropna().unique()
+            if addr
+        ]
 
-        self.geocoded_addresses = geocoder.geocode(addresses)
+        lat_map: Dict[str, float] = {}
+        lon_map: Dict[str, float] = {}
 
-        df[["latitude", "longitude"]] = (df["endereco"]
-            .apply(self._create_geocoded_features, axis="columns")
-        )
+        if valid_addresses:
+            logger.info(f"Enviando {len(valid_addresses)} endereços únicos para geocodificação em lote.")
 
-        return df.drop(["endereco", "rua", "bairro"], axis="columns")
+            try:
+                batch_response = self.client.batch_geocode_sync(valid_addresses)
+
+                for res in batch_response.results:
+                    if res.data and res.source != "error":
+                        lat_map[res.data.address] = res.data.latitude
+                        lon_map[res.data.address] = res.data.longitude
+
+            except Exception as err:
+                logger.error(f"Falha ao executar geocodificação em lote: {err}")
+
+        df["latitude"] = df["endereco"].map(lat_map).astype(np.float64)
+        df["longitude"] = df["endereco"].map(lon_map).astype(np.float64)
+
+        drop_cols = [
+            c
+            for c in ["endereco", "rua", "bairro"]
+            if c in df.columns
+        ]
+
+        return df.drop(columns=drop_cols)
 
     def _clip_out_of_bounds_samples(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Clip samples with address out of bound of Goiânia
+        """Filtra e remove registros cujas coordenadas estejam fora dos limites geográficos de Goiânia.
 
         Args:
-            df (pd.DataFrame): Dataset
+            df (pd.DataFrame): DataFrame contendo as colunas `latitude` e `longitude`.
 
         Returns:
-            pd.DataFrame: Dataset updated with the out of bound samples clipped
+            pd.DataFrame: DataFrame filtrado com os registros dentro dos limites.
         """
-        self.logger.info("Cliping samples out of Goiânia bounds.")
+        self.logger.info("Filtrando amostras fora dos limites geográficos de Goiânia.")
 
-        mask_latitude = ((MIN_LATITUDE <= df["latitude"]) & (df["latitude"] <= MAX_LATITUDE))
-        mask_longitude = ((MIN_LONGITUDE <= df["longitude"]) & (df["longitude"] <= MAX_LONGITUDE))
+        if "latitude" not in df.columns or "longitude" not in df.columns:
+            return df
 
-        return df[mask_latitude & mask_longitude].reset_index(drop=True)
+        mask_lat = ((df["latitude"] >= MIN_LATITUDE) & (df["latitude"] <= MAX_LATITUDE))
+        mask_lon = ((df["longitude"] >= MIN_LONGITUDE) & (df["longitude"] <= MAX_LONGITUDE))
+
+        valid_mask = (mask_lat & mask_lon)
+
+        return df[valid_mask].reset_index(drop=True)
 
     def _convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Convert dtypes of the dataset
+        """Converte os tipos de dados do DataFrame para tipos otimizados do Pandas.
 
         Args:
-            df (pd.DataFrame): Dataset
+            df (pd.DataFrame): DataFrame de entrada.
 
         Returns:
-            pd.DataFrame: Dataset with the dtypes converted
+            pd.DataFrame: DataFrame com os tipos convertidos.
         """
         return df.convert_dtypes()
 
     def __call__(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Geocode all address of dataset and create (enrich) two new features
-        `latitude` and `longitude` from `rua` and `bairro`
+        """Executa o pipeline completo de enriquecimento geográfico.
 
         Args:
-            df (pd.DataFrame): Dataset to be enriched
+            df (pd.DataFrame): Conjunto de dados de imóveis a ser enriquecido.
 
         Returns:
-            pd.DataFrame: The new dataset with the features `latitude` and `longitude`
+            pd.DataFrame: Conjunto de dados enriquecido com `latitude` e `longitude`.
         """
-        self.logger.info("Initializaing enrichment of features by geocoding of `rua` and `bairro`.")
+        logger.info("Iniciando etapa de enriquecimento geográfico por geocodificação.")
 
         df = (df
             .pipe(self._extract_geocoded_features)
@@ -137,6 +156,6 @@ class GeocodingEnricher:
             .pipe(self._convert_dtypes)
         )
 
-        self.logger.info("Finalizing enrichment of features by geocoding.")
-
+        logger.info("Etapa de enriquecimento geográfico concluída com sucesso.")
+        
         return df
