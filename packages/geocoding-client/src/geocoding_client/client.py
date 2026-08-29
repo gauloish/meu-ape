@@ -120,23 +120,30 @@ class GeocodingClient:
             return
 
         status_code = response.status_code
+
         try:
             body = response.json()
             message = body.get("detail", response.text)
+
         except Exception:
             body = None
             message = response.text or f"Erro HTTP {status_code}"
 
         if status_code == 401:
             raise AuthenticationError(message, status_code=status_code, response_data=body)
+
         elif status_code == 404:
             raise AddressNotFound(message, status_code=status_code, response_data=body)
+
         elif status_code == 429:
             retry_after_str = response.headers.get("Retry-After")
             retry_after = float(retry_after_str) if retry_after_str else None
+
             raise RateLimitExceeded(message, retry_after=retry_after, response_data=body)
+
         elif status_code in (500, 502, 503, 504):
             raise ServerError(message, status_code=status_code, response_data=body)
+
         else:
             raise GeoAPIError(message, status_code=status_code, response_data=body)
 
@@ -171,18 +178,23 @@ class GeocodingClient:
                 try:
                     response = await self._http_client.request(method, url, **kwargs)
                     self._handle_response_error(response)
+
                     return response
+
                 except httpx.RequestError as exc:
                     logger.warning(
                         f"Falha de conexão com a API de Geocodificação: {exc}. "
                         f"Tentativa {attempt.retry_state.attempt_number} de {self.settings.max_retries}"
                     )
+
                     raise HTTPConnectionError(f"Erro de conexão HTTP: {exc}") from exc
+
                 except (RateLimitExceeded, ServerError) as exc:
                     logger.warning(
                         f"Requisição falhou com status temporário ({exc.status_code}): {exc.message}. "
                         f"Tentativa {attempt.retry_state.attempt_number} de {self.settings.max_retries}"
                     )
+
                     raise
 
         raise GeoAPIError("Falha inesperada no fluxo de retentativa.")
@@ -202,8 +214,10 @@ class GeocodingClient:
             GeoAPIError: Caso a resposta da API não seja um JSON válido de diagnóstico.
         """
         response = await self._http_client.get("/health")
+
         if response.status_code not in (200, 503):
             self._handle_response_error(response)
+
         return HealthResponse.model_validate(response.json())
 
     async def geocode(self, address: str) -> GeocodingResponse:
@@ -226,6 +240,7 @@ class GeocodingClient:
             >>> print(result.data.latitude, result.data.longitude)
         """
         response = await self._request_with_backoff("GET", "/geocoding/search", params={"address": address})
+
         return GeocodingResponse.model_validate(response.json())
 
     async def batch_geocode(self, addresses: list[str]) -> BatchGeocodingResponse:
@@ -247,6 +262,7 @@ class GeocodingClient:
         """
         payload = BatchGeocodingRequest(addresses=addresses).model_dump()
         response = await self._request_with_backoff("POST", "/geocoding/search/batch", json=payload)
+
         return BatchGeocodingResponse.model_validate(response.json())
 
     async def reverse_geocode(self, latitude: float, longitude: float) -> ReverseGeocodingResponse:
@@ -266,6 +282,7 @@ class GeocodingClient:
         """
         params = {"lat": latitude, "lon": longitude}
         response = await self._request_with_backoff("GET", "/geocoding/reverse", params=params)
+
         return ReverseGeocodingResponse.model_validate(response.json())
 
     async def batch_reverse_geocode(
@@ -288,8 +305,10 @@ class GeocodingClient:
             c if isinstance(c, CoordinateRequest) else CoordinateRequest(latitude=c[0], longitude=c[1])
             for c in coordinates
         ]
+
         payload = BatchReverseGeocodingRequest(coordinates=coord_objects).model_dump()
         response = await self._request_with_backoff("POST", "/geocoding/reverse/batch", json=payload)
+        
         return BatchReverseGeocodingResponse.model_validate(response.json())
 
     # -------------------------------------------------------------------------

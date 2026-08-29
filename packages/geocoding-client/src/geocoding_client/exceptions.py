@@ -32,6 +32,7 @@ class GeoAPIError(Exception):
     def __str__(self) -> str:
         if self.status_code:
             return f"[{self.status_code}] {self.message}"
+            
         return self.message
 
 
