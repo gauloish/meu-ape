@@ -1,6 +1,12 @@
-"""Pacote principal `ml-core` para pré-processamento de dados e transformações para ML."""
+"""Pacote principal `ml-core` para estimadores, transformadores e pré-processamento de ML."""
 
-from . import preprocessing, transformers
+from . import estimators, preprocessing, transformers
+from .estimators import (
+    GatingMetrics,
+    MoEEstimator,
+    MoEMetricsReport,
+    RegressionMetrics,
+)
 from .preprocessing import DataCleaner, FeatureExtractor, GeocodingEnricher
 from .transformers import (
     BinsDiscretizer,
@@ -10,8 +16,13 @@ from .transformers import (
 )
 
 __all__ = [
+    "estimators",
     "preprocessing",
     "transformers",
+    "MoEEstimator",
+    "MoEMetricsReport",
+    "GatingMetrics",
+    "RegressionMetrics",
     "DataCleaner",
     "FeatureExtractor",
     "GeocodingEnricher",
