@@ -33,13 +33,13 @@ class GeocodingResponse(BaseModel):
 
     Attributes:
         source (str): Origem da informação ('cache', 'nominatim' ou 'error').
-        data (GeocodingData): Dados detalhados de geocodificação.
+        data (GeocodingData | None): Dados detalhados de geocodificação.
     """
 
     model_config = ConfigDict(from_attributes=True)
 
     source: str = Field(..., description="Origem do dado: 'cache', 'nominatim' ou 'error'")
-    data: GeocodingData = Field(..., description="Dados detalhados da localização")
+    data: GeocodingData | None = Field(default=None, description="Dados detalhados da localização")
 
 
 class BatchGeocodingRequest(BaseModel):
@@ -84,14 +84,14 @@ class ReverseGeocodingResponse(BaseModel):
     """Objeto de resposta para consulta de geocodificação reversa individual.
 
     Attributes:
-        source (str): Origem do dado ('cache' ou 'nominatim').
-        data (dict[str, Any]): Dicionário com os atributos de endereço retornados pelo Nominatim.
+        source (str): Origem do dado ('cache', 'nominatim' ou 'error').
+        data (dict[str, Any] | None): Dicionário com os atributos de endereço retornados pelo Nominatim.
     """
 
     model_config = ConfigDict(from_attributes=True)
 
-    source: str = Field(..., description="Origem do dado: 'cache' ou 'nominatim'")
-    data: dict[str, Any] = Field(..., description="Dados brutos de endereço retornados pelo Nominatim")
+    source: str = Field(..., description="Origem do dado: 'cache', 'nominatim' ou 'error'")
+    data: dict[str, Any] | None = Field(default=None, description="Dados brutos de endereço retornados pelo Nominatim")
 
 
 class BatchReverseGeocodingRequest(BaseModel):

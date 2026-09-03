@@ -73,6 +73,9 @@ class GeocodingClient:
         self.base_url = (base_url or self.settings.geo_api_url).rstrip("/")
         self.api_key = api_key or self.settings.geo_api_key
 
+        logger.error(f"================== [BASE_URL] {self.base_url} ===================")
+        logger.error(f"================== [API_KEY] {self.api_key} ===================")
+
         self._headers = {
             "X-API-Key": self.api_key,
             "Accept": "application/json",
@@ -244,10 +247,10 @@ class GeocodingClient:
         return GeocodingResponse.model_validate(response.json())
 
     async def batch_geocode(self, addresses: list[str]) -> BatchGeocodingResponse:
-        """Geocodifica múltiplos endereços em lote através de única requisição otimizada.
+        """Geocodifica múltiplos endereços em lote fracionando automaticamente em sub-lotes de no máximo 100 itens.
 
-        Aplica retentativa automática com Exponential Backoff para garantir que a requisição
-        em lote não falhe devido a limitações temporárias de taxa.
+        Aplica retentativa automática com Exponential Backoff para garantir que as requisições
+        em lote não falhem devido a limitações temporárias de taxa.
 
         Args:
             addresses (list[str]): Lista contendo os endereços a serem geocodificados.
@@ -260,10 +263,31 @@ class GeocodingClient:
             RateLimitExceeded: Se o limite de requisições em lote for excedido (HTTP 429).
             ServerError: Se ocorrer erro na API ou infraestrutura (HTTP 5xx).
         """
-        payload = BatchGeocodingRequest(addresses=addresses).model_dump()
-        response = await self._request_with_backoff("POST", "/geocoding/search/batch", json=payload)
+        if not addresses:
+            return BatchGeocodingResponse(results=[])
 
-        return BatchGeocodingResponse.model_validate(response.json())
+        batch_size = 100
+        all_results = []
+
+        for i in range(0, len(addresses), batch_size):
+            chunk = addresses[i : i + batch_size]
+            payload = BatchGeocodingRequest(addresses=chunk).model_dump()
+            try:
+                response = await self._request_with_backoff("POST", "/geocoding/search/batch", json=payload)
+                sub_batch = BatchGeocodingResponse.model_validate(response.json())
+                all_results.extend(sub_batch.results)
+            except Exception as exc:
+                logger.warning(f"Falha no sub-lote de geocodificação ({i} a {i + len(chunk)}): {exc}")
+                empty_results = [
+                    GeocodingResponse(
+                        source="error",
+                        data=None,
+                    )
+                    for _ in chunk
+                ]
+                all_results.extend(empty_results)
+
+        return BatchGeocodingResponse(results=all_results)
 
     async def reverse_geocode(self, latitude: float, longitude: float) -> ReverseGeocodingResponse:
         """Realiza a geocodificação reversa, convertendo Latitude e Longitude em endereço completo.
@@ -288,7 +312,7 @@ class GeocodingClient:
     async def batch_reverse_geocode(
         self, coordinates: list[CoordinateRequest | tuple[float, float]]
     ) -> BatchReverseGeocodingResponse:
-        """Realiza a geocodificação reversa em lote para uma lista de coordenadas.
+        """Realiza a geocodificação reversa em lote fracionando em sub-lotes de no máximo 100 itens.
 
         Args:
             coordinates (list[CoordinateRequest | tuple[float, float]]): Lista de objetos
@@ -301,15 +325,36 @@ class GeocodingClient:
             AuthenticationError: Se a API Key for inválida (HTTP 401).
             RateLimitExceeded: Se o limite de requisições for excedido (HTTP 429).
         """
+        if not coordinates:
+            return BatchReverseGeocodingResponse(results=[])
+
         coord_objects = [
             c if isinstance(c, CoordinateRequest) else CoordinateRequest(latitude=c[0], longitude=c[1])
             for c in coordinates
         ]
 
-        payload = BatchReverseGeocodingRequest(coordinates=coord_objects).model_dump()
-        response = await self._request_with_backoff("POST", "/geocoding/reverse/batch", json=payload)
-        
-        return BatchReverseGeocodingResponse.model_validate(response.json())
+        batch_size = 100
+        all_results = []
+
+        for i in range(0, len(coord_objects), batch_size):
+            chunk = coord_objects[i : i + batch_size]
+            payload = BatchReverseGeocodingRequest(coordinates=chunk).model_dump()
+            try:
+                response = await self._request_with_backoff("POST", "/geocoding/reverse/batch", json=payload)
+                sub_batch = BatchReverseGeocodingResponse.model_validate(response.json())
+                all_results.extend(sub_batch.results)
+            except Exception as exc:
+                logger.warning(f"Falha no sub-lote de geocodificação reversa ({i} a {i + len(chunk)}): {exc}")
+                empty_results = [
+                    ReverseGeocodingResponse(
+                        source="error",
+                        data=None,
+                    )
+                    for _ in chunk
+                ]
+                all_results.extend(empty_results)
+
+        return BatchReverseGeocodingResponse(results=all_results)
 
     # -------------------------------------------------------------------------
     # Métodos Síncronos Facilitadores

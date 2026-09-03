@@ -35,12 +35,12 @@ class ClientSettings(BaseSettings):
     )
 
     max_retries: int = Field(
-        default=4,
+        default=5,
         description="Número máximo de tentativas no exponential backoff em 429/5xx",
-    
     )
+    
     backoff_factor: float = Field(
-        default=1.5,
+        default=2.0,
         description="Fator multiplicador do intervalo de backoff exponencial em segundos",
     )
 
