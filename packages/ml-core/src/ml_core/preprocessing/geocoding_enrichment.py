@@ -28,9 +28,13 @@ class GeocodingEnricher:
         client (GeocodingClient): Instância do cliente HTTP da API de Geocodificação.
     """
 
-    def __init__(self) -> None:
-        """Inicializa o enriquecedor de dados geográficos."""
-        self.client: GeocodingClient = GeocodingClient()
+    def __init__(self, client: GeocodingClient | None = None) -> None:
+        """Inicializa o enriquecedor de dados geográficos.
+
+        Args:
+            client (GeocodingClient | None): Instância customizada do cliente de geocodificação.
+        """
+        self.client: GeocodingClient = client or GeocodingClient()
 
     def _get_address_feature(self, df: pd.DataFrame) -> pd.DataFrame:
         """Combina as colunas `rua` e `bairro` em um campo de endereço completo.
@@ -109,19 +113,22 @@ class GeocodingEnricher:
     def _clip_out_of_bounds_samples(self, df: pd.DataFrame) -> pd.DataFrame:
         """Filtra e remove registros cujas coordenadas estejam fora dos limites geográficos de Goiânia.
 
+        Registros sem coordenadas (NaN) são mantidos para permitir a imputação pelo
+        SimpleImputer do pipeline de Machine Learning.
+
         Args:
             df (pd.DataFrame): DataFrame contendo as colunas `latitude` e `longitude`.
 
         Returns:
-            pd.DataFrame: DataFrame filtrado com os registros dentro dos limites.
+            pd.DataFrame: DataFrame filtrado com os registros válidos ou não geocodificados.
         """
         logger.info("Filtrando amostras fora dos limites geográficos de Goiânia.")
 
         if "latitude" not in df.columns or "longitude" not in df.columns:
             return df
 
-        mask_lat = ((df["latitude"] >= MIN_LATITUDE) & (df["latitude"] <= MAX_LATITUDE))
-        mask_lon = ((df["longitude"] >= MIN_LONGITUDE) & (df["longitude"] <= MAX_LONGITUDE))
+        mask_lat = df["latitude"].isna() | ((df["latitude"] >= MIN_LATITUDE) & (df["latitude"] <= MAX_LATITUDE))
+        mask_lon = df["longitude"].isna() | ((df["longitude"] >= MIN_LONGITUDE) & (df["longitude"] <= MAX_LONGITUDE))
 
         valid_mask = (mask_lat & mask_lon)
 

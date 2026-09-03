@@ -56,7 +56,7 @@ class ClusterTransformer(TransformerMixin, BaseEstimator):
         self.feature: str = feature
 
     def fit(self, X: pd.DataFrame, y: Any = None) -> Self:
-        """Ajusta o modelo K-Means utilizando os dados de treinamento.
+        """Ajusta o modelo K-Means utilizando os dados de treinamento com coordenadas válidas.
 
         Args:
             X (pd.DataFrame): DataFrame de treinamento contendo as colunas de coordenadas.
@@ -68,14 +68,24 @@ class ClusterTransformer(TransformerMixin, BaseEstimator):
         self._validate_input(X)
 
         coords = X[[self.lat_feature, self.lon_feature]].to_numpy(dtype=np.float64)
+        valid_mask = ~np.isnan(coords).any(axis=1)
+        valid_coords = coords[valid_mask]
 
-        self.kmeans_ = KMeans(
-            n_clusters=self.n_clusters,
-            random_state=self.random_state,
-            n_init="auto",
-        )
-
-        self.kmeans_.fit(coords)
+        if len(valid_coords) > 0:
+            actual_n_clusters = min(self.n_clusters, len(valid_coords))
+            self.kmeans_ = KMeans(
+                n_clusters=actual_n_clusters,
+                random_state=self.random_state,
+                n_init="auto",
+            )
+            self.kmeans_.fit(valid_coords)
+        else:
+            self.kmeans_ = KMeans(
+                n_clusters=1,
+                random_state=self.random_state,
+                n_init="auto",
+            )
+            self.kmeans_.fit(np.zeros((1, 2)))
 
         self.n_features_in_ = X.shape[1]
         self.feature_names_in_ = np.array(X.columns, dtype=object)
@@ -90,7 +100,7 @@ class ClusterTransformer(TransformerMixin, BaseEstimator):
             X (pd.DataFrame): DataFrame de entrada contendo as coordenadas geográficas.
 
         Returns:
-            pd.DataFrame: Novo DataFrame com a coluna de cluster adicionada.
+            pd.DataFrame: Novo DataFrame com a coluna de cluster adicionada (NaN para amostras sem coordenadas).
 
         Raises:
             NotFittedError: Se o transformador ainda não tiver sido ajustado via `fit`.
@@ -100,7 +110,13 @@ class ClusterTransformer(TransformerMixin, BaseEstimator):
 
         X_out = X.copy()
         coords = X_out[[self.lat_feature, self.lon_feature]].to_numpy(dtype=np.float64)
-        X_out[self.feature] = self.kmeans_.predict(coords)
+        valid_mask = ~np.isnan(coords).any(axis=1)
+
+        X_out[self.feature] = np.nan
+
+        if valid_mask.any():
+            preds = self.kmeans_.predict(coords[valid_mask])
+            X_out.loc[valid_mask, self.feature] = preds
 
         return X_out
 
