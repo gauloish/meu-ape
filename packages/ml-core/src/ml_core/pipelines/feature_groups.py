@@ -36,8 +36,8 @@ class FeatureGroups:
 def get_default_feature_groups(X: pd.DataFrame | Any | None = None) -> FeatureGroups:
     """Função de configuração para resolução dos grupos de features.
 
-    Este é o ponto de entrada (placeholder) onde a lógica de seleção de colunas
-    (manual ou inferida dinamicamente pelo DataFrame `X`) deve ser inserida.
+    Inferência dinâmica quando um `pd.DataFrame` é fornecido, ou lista completa padrão
+    do domínio quando `X` for `None`.
 
     Args:
         X (pd.DataFrame | Any | None): DataFrame opcional para inferência dinâmica de tipos.
@@ -45,24 +45,22 @@ def get_default_feature_groups(X: pd.DataFrame | Any | None = None) -> FeatureGr
     Returns:
         FeatureGroups: Instância configurada com as listas de colunas para cada sub-pipeline.
     """
-    # =========================================================================
-    # TODO: Adicione suas colunas aqui
-    # =========================================================================
-    # Exemplo de preenchimento manual:
-    # numeric_features = ["area_m2", "quartos", "banheiros", "vagas", "latitude", "longitude"]
-    # categorical_features = ["tipo_imovel", "bairro"]
-    # ordinal_features = ["faixa_area", "faixa_condominio"]
-    # boolean_features = ["piscina", "academia", "varanda"]
-
-    numeric_features: list[str] = []
-    categorical_features: list[str] = []
-    ordinal_features: list[str] = []
-    boolean_features: list[str] = []
-
     if isinstance(X, pd.DataFrame):
-        # TODO: Se desejar, implemente aqui a lógica de separação automática baseada no DataFrame X:
-        # e.g. numeric_features = X.select_dtypes(include=["int64", "float64"]).columns.tolist()
-        pass
+        numeric_features = X.select_dtypes(
+            include=["number", "Int64", "Float64", "int64", "float64", "int32", "float32"]
+        ).columns.to_list()
+
+        categorical_features = X.select_dtypes(
+            include=["object", "string"]
+        ).columns.to_list()
+
+        ordinal_features = X.select_dtypes(
+            include=["category"]
+        ).columns.to_list()
+
+        boolean_features = X.select_dtypes(
+            include=["bool", "boolean"]
+        ).columns.to_list()
 
     return FeatureGroups(
         numeric_features=numeric_features,
