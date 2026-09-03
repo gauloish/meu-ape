@@ -26,7 +26,11 @@ class TestTrainingPipeline(unittest.TestCase):
 
         area = np.random.uniform(30.0, 300.0, n_samples)
         quartos = np.random.choice([1, 2, 3, 4, 5], size=n_samples)
+        banheiros = np.random.choice([1, 2, 3, 4], size=n_samples)
+        vagas = np.random.choice([1, 2, 3], size=n_samples)
+        condominio = np.random.uniform(100.0, 1000.0, n_samples)
         latitude = np.random.uniform(-16.75, -16.65, n_samples)
+        longitude = np.random.uniform(-49.30, -49.20, n_samples)
 
         # Injeta NaNs simulando dados brutos do mundo real
         area[np.random.choice(n_samples, size=15, replace=False)] = np.nan
@@ -38,7 +42,11 @@ class TestTrainingPipeline(unittest.TestCase):
                 # Numéricas
                 "area_m2": area,
                 "quartos": quartos_series,
+                "banheiros": banheiros,
+                "vagas": vagas,
+                "condominio": condominio,
                 "latitude": latitude,
+                "longitude": longitude,
                 # Categóricas
                 "tipo_imovel": np.random.choice(
                     ["apartamento", "casa", "cobertura", None],
@@ -86,19 +94,19 @@ class TestTrainingPipeline(unittest.TestCase):
         self.y = pd.Series(np.maximum(80_000, base_price), name="preco")
 
         self.groups = FeatureGroups(
-            numeric_features=["area_m2", "quartos", "latitude"],
+            numeric_features=["area_m2", "quartos", "banheiros", "vagas", "condominio", "latitude", "longitude"],
             categorical_features=["tipo_imovel", "bairro"],
             ordinal_features=["faixa_area"],
             boolean_features=["piscina", "academia"],
         )
 
     def test_feature_groups_properties(self) -> None:
-        """Testa o agrupamento de features e o placeholder get_default_feature_groups."""
-        self.assertEqual(len(self.groups.all_features), 8)
+        """Testa o agrupamento de features e a resolução de get_default_feature_groups."""
+        self.assertEqual(len(self.groups.all_features), 12)
 
         default_groups = get_default_feature_groups()
         self.assertIsInstance(default_groups, FeatureGroups)
-        self.assertEqual(default_groups.numeric_features, [])
+        self.assertIn("area_m2", default_groups.numeric_features)
 
     def test_get_preprocessor_structure(self) -> None:
         """Testa se o get_preprocessor constrói um ColumnTransformer com os 4 sub-pipelines."""
@@ -127,11 +135,12 @@ class TestTrainingPipeline(unittest.TestCase):
         pipeline = create_training_pipeline(feature_groups=self.groups, random_state=42)
 
         self.assertIsInstance(pipeline, Pipeline)
-        self.assertEqual(len(pipeline.steps), 2)
-        self.assertEqual(pipeline.steps[0][0], "preprocessor")
-        self.assertIsInstance(pipeline.steps[0][1], ColumnTransformer)
-        self.assertEqual(pipeline.steps[1][0], "model")
-        self.assertIsInstance(pipeline.steps[1][1], MoEEstimator)
+        self.assertEqual(len(pipeline.steps), 3)
+        self.assertEqual(pipeline.steps[0][0], "transformers")
+        self.assertEqual(pipeline.steps[1][0], "preprocessor")
+        self.assertIsInstance(pipeline.steps[1][1], ColumnTransformer)
+        self.assertEqual(pipeline.steps[2][0], "model")
+        self.assertIsInstance(pipeline.steps[2][1], MoEEstimator)
 
     def test_pipeline_fit_and_predict_end_to_end(self) -> None:
         """Testa o ciclo de vida completo (fit, predict, evaluate) da pipeline."""

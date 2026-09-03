@@ -108,6 +108,30 @@ def test_cluster_transformer_no_data_leakage():
     print("[PASS] test_cluster_transformer_no_data_leakage")
 
 
+def test_cluster_transformer_handles_nan_coordinates():
+    """Testa se o ClusterTransformer processa dados com valores NaN em latitude/longitude sem erro."""
+    X_train = pd.DataFrame(
+        {
+            "latitude": [-16.67, np.nan, -16.69, -16.70],
+            "longitude": [-49.25, -49.26, np.nan, -49.28],
+        }
+    )
+
+    transformer = ClusterTransformer(n_clusters=2, random_state=42)
+    transformer.fit(X_train)
+
+    df_trans = transformer.transform(X_train)
+
+    assert "cluster" in df_trans.columns
+    # Linhas sem coordenadas válidas devem ter cluster como NaN
+    assert pd.isna(df_trans.iloc[1]["cluster"])
+    assert pd.isna(df_trans.iloc[2]["cluster"])
+    # Linhas válidas devem receber cluster numérico
+    assert not pd.isna(df_trans.iloc[0]["cluster"])
+    assert not pd.isna(df_trans.iloc[3]["cluster"])
+    print("[PASS] test_cluster_transformer_handles_nan_coordinates")
+
+
 def test_ratio_transformer_zero_division():
     """Testa o RatioTransformer tratando divisão por zero e inf de forma segura."""
     df = pd.DataFrame(
@@ -196,6 +220,7 @@ if __name__ == "__main__":
     print("Iniciando testes do pacote ml-core...")
     test_geocoding_enricher_batch_integration()
     test_cluster_transformer_no_data_leakage()
+    test_cluster_transformer_handles_nan_coordinates()
     test_ratio_transformer_zero_division()
     test_geodesic_distance_transformer_index_alignment()
     test_bins_discretizer()
