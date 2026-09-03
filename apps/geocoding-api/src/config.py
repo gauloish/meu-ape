@@ -1,5 +1,6 @@
 import logging
 import sys
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -20,10 +21,14 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
 
-    # Security (SecOps) & Rate Limiting
-    geo_api_key: str = Field(default="geocoding_secret_key_change_me", description="Chave de API M2M")
-    rate_limit_default: str = Field(default="100/minute", description="Limite padrão para rotas unitárias")
-    rate_limit_batch: str = Field(default="20/minute", description="Limite padrão para rotas em lote")
+    # Security (SecOps) & Rate Limiting por Perfil
+    geo_api_key_app: str = Field(default="geocoding_secret_key_change_me", description="Chave para consumo comum (Backend)")
+    geo_api_key_ml: str = Field(default="geocoding_ml_secret_key_change_me", description="Chave para pipeline de ML")
+
+    rate_limit_app_default: str = Field(default="60/minute", description="Limite padrão para consumo comum (unitário)")
+    rate_limit_app_batch: str = Field(default="10/minute", description="Limite padrão para consumo comum (em lote)")
+    rate_limit_ml_default: str = Field(default="600/minute", description="Limite padrão para pipeline de ML (unitário)")
+    rate_limit_ml_batch: str = Field(default="120/minute", description="Limite padrão para pipeline de ML (em lote)")
 
     model_config = SettingsConfigDict(
         env_file=".env",

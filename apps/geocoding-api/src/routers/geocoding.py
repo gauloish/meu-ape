@@ -14,7 +14,7 @@ from ..database.repositories import (
     normalize_address,
 )
 from ..dependencies import get_db, get_http_client
-from ..rate_limiter import limiter
+from ..rate_limiter import get_rate_limit_batch, get_rate_limit_default, limiter
 from ..schemas import (
     BatchGeocodingRequest,
     BatchGeocodingResponse,
@@ -42,7 +42,7 @@ router = APIRouter(
     response_model=GeocodingResponse,
     summary="Busca coordenadas por endereço (com cache no PostgreSQL)",
 )
-@limiter.limit(settings.rate_limit_default)
+@limiter.limit(get_rate_limit_default)
 async def search_address(
     request: Request,
     address: str = Query(..., description="Endereço completo para buscar"),
@@ -130,7 +130,7 @@ async def search_address(
     response_model=BatchGeocodingResponse,
     summary="Busca coordenadas para múltiplos endereços em lote (Concorrente com Cache)",
 )
-@limiter.limit(settings.rate_limit_batch)
+@limiter.limit(get_rate_limit_batch)
 async def batch_search_address(
     request: Request,
     body: BatchGeocodingRequest,
@@ -260,7 +260,7 @@ async def batch_search_address(
     response_model=ReverseGeocodingResponse,
     summary="Busca endereço a partir de Latitude e Longitude (com cache)",
 )
-@limiter.limit(settings.rate_limit_default)
+@limiter.limit(get_rate_limit_default)
 async def reverse_geocode(
     request: Request,
     lat: float = Query(..., description="Latitude", ge=-90.0, le=90.0),
@@ -324,7 +324,7 @@ async def reverse_geocode(
     response_model=BatchReverseGeocodingResponse,
     summary="Busca endereços a partir de múltiplas coordenadas em lote (Concorrente com Cache)",
 )
-@limiter.limit(settings.rate_limit_batch)
+@limiter.limit(get_rate_limit_batch)
 async def batch_reverse_geocode(
     request: Request,
     body: BatchReverseGeocodingRequest,
