@@ -9,16 +9,16 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "geocoding-client",
-    "numpy>=1.26.0",
-    "pandas>=2.2.0",
-    "pydantic>=2.0.0",
-    "scikit-learn>=1.4.0",
-    "xgboost>=3.0.0",
+    "numpy>=2.5.1",
+    "pandas>=3.0.5",
+    "pydantic>=2.13.4",
+    "scikit-learn>=1.9.0",
+    "xgboost>=3.4.1",
 ]
-
-[tool.uv.sources]
-geocoding-client = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.11.18,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.uv.sources]
+geocoding-client = { workspace = true }
