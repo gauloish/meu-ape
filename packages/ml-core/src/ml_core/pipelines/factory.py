@@ -4,7 +4,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
@@ -13,13 +13,86 @@ from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, OrdinalEnc
 from ml_core.estimators import MoEEstimator
 
 from .feature_groups import FeatureGroups, get_default_feature_groups
+from .constants import BINS_INFO, POINTS, PAIRS
+from ..transformers import (
+    BinsDiscretizer,
+    ClusterTransformer,
+    GeodesicDistanceTransformer,
+    RatioTransformer,
+)
 
 
 def _cast_bool_to_float(X: Any) -> np.ndarray:
     """Converte colunas booleanas (incluindo pd.NA, None e tipos nullable) para float com np.nan."""
     if isinstance(X, pd.DataFrame | pd.Series):
         return X.astype(float).to_numpy()
+
     return np.asarray(X, dtype=np.float64)
+
+
+def get_transformers(
+    bins_discretizer_enabled: bool = True,
+    cluster_enabled: bool = True,
+    geodesic_distance_enabled: bool = True,
+    ratio_enabled: bool = True,
+) -> Pipeline:
+    """Constrói o `ColumnTransformer` com sub-pipelines dedicados para cada tipo de feature.
+
+    Sub-pipelines aplicados:
+    - **Numéricas (Discretas e Contínuas):** `SimpleImputer(strategy='median')`.
+    - **Categóricas:** `SimpleImputer(strategy='most_frequent')` + `OneHotEncoder(handle_unknown='ignore')`.
+    - **Ordinais:** `SimpleImputer(strategy='most_frequent')` + `OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)`.
+    - **Booleanas:** Conversão para float numérico + `SimpleImputer(strategy='most_frequent')`.
+
+    Args:
+        feature_groups (FeatureGroups | None): Agrupamento de features por tipo. Se None, utiliza `get_default_feature_groups()`.
+        remainder (str): Ação para colunas não especificadas ('drop' ou 'passthrough'). Padrão: 'drop'.
+        sparse_threshold (float): Limiar para saída esparsa no ColumnTransformer. Padrão: 0.0 (retorna arrays densos).
+
+    Returns:
+        ColumnTransformer: Transformador de colunas configurado.
+    """
+    steps: list[tuple[str, TransformerMixin]] = []
+
+    # 1. Transformer para Discretizador por Bins
+    if bins_discretizer_enabled:
+        bin_discretizer = BinsDiscretizer(
+            bins_info=BINS_INFO
+        )
+
+        steps.append(
+            ("bins_discretizer", bin_discretizer)
+        )
+
+    # 2. Transformer para Clusterizador
+    if cluster_enabled:
+        cluster_transformer = ClusterTransformer()
+
+        steps.append(
+            ("cluster_transformer", cluster_transformer)
+        )
+
+    # 3. Transformer para Distâncias Geodésicas
+    if geodesic_distance_enabled:
+        geodesic_distance_transformer = GeodesicDistanceTransformer(
+            points=POINTS
+        )
+
+        steps.append(
+            ("geodesic_distance_transformer", geodesic_distance_transformer)
+        )
+
+    # 4. Transformer para Features Booleanas
+    if ratio_enabled:
+        ratio_transformer = RatioTransformer(
+            pairs=PAIRS,
+        )
+
+        steps.append(
+            ("ratio_transformer", ratio_transformer)
+        )
+
+    return Pipeline(steps=steps)
 
 
 def get_preprocessor(
@@ -52,7 +125,7 @@ def get_preprocessor(
     if feature_groups.numeric_features:
         numeric_pipeline = Pipeline(
             steps=[
-                ("imputer", SimpleImputer(strategy="median")),
+                ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
             ]
         )
         transformers.append(
@@ -63,7 +136,7 @@ def get_preprocessor(
     if feature_groups.categorical_features:
         categorical_pipeline = Pipeline(
             steps=[
-                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("imputer", SimpleImputer(strategy="most_frequent", keep_empty_features=True)),
                 (
                     "encoder",
                     OneHotEncoder(handle_unknown="ignore", sparse_output=False),
@@ -78,7 +151,7 @@ def get_preprocessor(
     if feature_groups.ordinal_features:
         ordinal_pipeline = Pipeline(
             steps=[
-                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("imputer", SimpleImputer(strategy="most_frequent", keep_empty_features=True)),
                 (
                     "encoder",
                     OrdinalEncoder(
@@ -103,7 +176,7 @@ def get_preprocessor(
                         feature_names_out="one-to-one",
                     ),
                 ),
-                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("imputer", SimpleImputer(strategy="most_frequent", keep_empty_features=True)),
             ]
         )
         transformers.append(
@@ -128,6 +201,7 @@ def create_training_pipeline(
     Estrutura do pipeline:
     ```
     Pipeline(steps=[
+        ('transformers', Pipeline(...)),
         ('preprocessor', ColumnTransformer(...)),
         ('model', MoEEstimator(...))
     ])
@@ -153,6 +227,8 @@ def create_training_pipeline(
         >>> pipeline.fit(X_train, y_train)
         >>> y_pred = pipeline.predict(X_test)
     """
+    transformers = get_transformers()
+
     preprocessor = get_preprocessor(
         feature_groups=feature_groups,
         remainder=remainder,
@@ -163,6 +239,7 @@ def create_training_pipeline(
 
     return Pipeline(
         steps=[
+            ("transformers", transformers),
             ("preprocessor", preprocessor),
             ("model", model),
         ]
