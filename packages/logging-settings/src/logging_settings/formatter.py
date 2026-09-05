@@ -13,12 +13,12 @@ def get_format_str(color: str, reset: str) -> str:
     Returns:
         str: Formatted string to logger.
     """
-    return f"[%(asctime)s][%(name)s] {color}%(levelname)s{reset}: %(message)s"
+    return f"[ %(asctime)s ] [ %(name)s ] [ {color}%(levelname)s{reset} ]: %(message)s"
 
 
 class ColorFormatter(logging.Formatter):
     GREY = "\x1b[38;20m"
-    BLUE = "\x1b[34;20m"
+    GREEN = "\x1b[32;20m"
     YELLOW = "\x1b[33;20m"
     RED = "\x1b[31;20m"
     BOLD_RED = "\x1b[31;1m"
@@ -28,7 +28,7 @@ class ColorFormatter(logging.Formatter):
 
     FORMATS = {
         logging.DEBUG: get_format_str(GREY, RESET),
-        logging.INFO: get_format_str(BLUE, RESET),
+        logging.INFO: get_format_str(GREEN, RESET),
         logging.WARNING: get_format_str(YELLOW, RESET),
         logging.ERROR: get_format_str(RED, RESET),
         logging.CRITICAL: get_format_str(BOLD_RED, RESET),

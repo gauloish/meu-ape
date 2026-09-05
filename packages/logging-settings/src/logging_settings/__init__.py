@@ -1,8 +1,8 @@
 from .formatter import ColorFormatter
-from .setup import setup_logging
+from .setup import setup_logger
 
 
 __all__ = [
-    "setup_logging",
+    "setup_logger",
     "ColorFormatter",
 ]
