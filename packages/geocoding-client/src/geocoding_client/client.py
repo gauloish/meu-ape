@@ -1,8 +1,8 @@
 import asyncio
-import logging
 from typing import Any, Self
 
 import httpx
+from logging_settings import setup_logger
 from tenacity import (
     AsyncRetrying,
     retry_if_exception_type,
@@ -30,7 +30,7 @@ from .schemas import (
     ReverseGeocodingResponse,
 )
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class GeocodingClient:
@@ -72,9 +72,6 @@ class GeocodingClient:
         self.settings = settings or default_settings
         self.base_url = (base_url or self.settings.geo_api_url).rstrip("/")
         self.api_key = api_key or self.settings.geo_api_key
-
-        logger.error(f"================== [BASE_URL] {self.base_url} ===================")
-        logger.error(f"================== [API_KEY] {self.api_key} ===================")
 
         self._headers = {
             "X-API-Key": self.api_key,

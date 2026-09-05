@@ -6,7 +6,7 @@ from ml_core.transformers.geodesic_distance_transformer import GeodesicDistanceT
 
 from sklearn.pipeline import Pipeline
 
-import logging
+from logging_settings import setup_logger
 import pandas as pd
 
 from dotenv import (
@@ -16,7 +16,7 @@ from dotenv import (
 
 load_dotenv(find_dotenv())
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 points = {
     # Parques

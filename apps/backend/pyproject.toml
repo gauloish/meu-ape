@@ -6,9 +6,11 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "geocoding-client",
+    "logging-settings",
     "ml-core",
 ]
 
 [tool.uv.sources]
 ml-core = { workspace = true }
 geocoding-client = { workspace = true }
+logging-settings = { workspace = true }

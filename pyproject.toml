@@ -24,4 +24,5 @@ members = [
     "packages/geocoding-client",
     "packages/ml-core",
     "notebooks",
+    "packages/logging-settings",
 ]
