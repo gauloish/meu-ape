@@ -8,6 +8,7 @@ dependencies = [
     "asyncpg>=0.31.0",
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
+    "logging-settings",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.15.0",
     "python-dotenv>=1.2.2",
@@ -18,4 +19,7 @@ dependencies = [
 
 [tool.pyright]
 extraPaths = ["."]
+
+[tool.uv.sources]
+logging-settings = { workspace = true }
 

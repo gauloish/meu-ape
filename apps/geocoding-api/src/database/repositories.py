@@ -1,5 +1,6 @@
 import json
-import logging
+
+from logging_settings import setup_logger
 from collections.abc import Iterable, Sequence
 
 from sqlalchemy import select
@@ -9,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import GeocodingCache, ReverseGeocodingCache
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 def normalize_address(address: str) -> str:

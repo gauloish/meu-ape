@@ -1,6 +1,7 @@
-import logging
-
 import httpx
+
+from logging_settings import setup_logger
+
 from fastapi import APIRouter, Depends, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -10,7 +11,7 @@ from ..config import settings
 from ..dependencies import get_db, get_http_client
 from ..schemas import HealthResponse
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 router = APIRouter(tags=["Health"])
 

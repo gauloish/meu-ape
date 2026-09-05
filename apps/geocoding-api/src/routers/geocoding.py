@@ -1,6 +1,5 @@
 import asyncio
 import json
-import logging
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -27,8 +26,9 @@ from ..schemas import (
     ReverseGeocodingResult,
 )
 from ..security import verify_api_key
+from logging_settings import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 router = APIRouter(
     prefix="/geocoding",

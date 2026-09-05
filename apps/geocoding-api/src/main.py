@@ -1,4 +1,4 @@
-import logging
+from logging_settings import setup_logger
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -14,7 +14,7 @@ from .rate_limiter import limiter
 from .routers import geocoding_router, health_router
 
 setup_logging()
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 @asynccontextmanager
