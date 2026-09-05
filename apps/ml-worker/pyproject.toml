@@ -5,10 +5,25 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "datasets>=5.0.1",
     "geocoding-client",
+    "huggingface-hub>=1.29.0",
+    "joblib>=1.5.3",
+    "logging-settings",
     "ml-core",
+    "numpy>=2.5.1",
+    "optuna>=4.9.0",
+    "pandas>=3.0.5",
+    "pytest>=9.1.1",
+    "python-dotenv>=1.2.2",
+    "scikit-learn>=1.9.0",
 ]
 
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
 [tool.uv.sources]
-ml-core = { workspace = true }
 geocoding-client = { workspace = true }
+ml-core = { workspace = true }
+logging-settings = { workspace = true }
+
