@@ -2,16 +2,19 @@
 
 from . import estimators, pipelines, preprocessing, transformers
 from .estimators import (
-    GatingMetrics,
-    MoEEstimator,
-    MoEMetricsReport,
     RegressionMetrics,
+    RegressionMetricsReport,
+    Regressor,
+    calculate_aggregated_metrics,
+    calculate_regression_metrics,
 )
 from .pipelines import (
     FeatureGroups,
     create_training_pipeline,
     get_default_feature_groups,
+    get_feature_groups,
     get_preprocessor,
+    get_transformers,
 )
 from .preprocessing import DataCleaner, FeatureExtractor, GeocodingEnricher
 from .transformers import (
@@ -27,17 +30,20 @@ __all__ = [
     "DataCleaner",
     "FeatureExtractor",
     "FeatureGroups",
-    "GatingMetrics",
     "GeocodingEnricher",
     "GeodesicDistanceTransformer",
-    "MoEEstimator",
-    "MoEMetricsReport",
     "RatioTransformer",
     "RegressionMetrics",
+    "RegressionMetricsReport",
+    "Regressor",
+    "calculate_aggregated_metrics",
+    "calculate_regression_metrics",
     "create_training_pipeline",
     "estimators",
     "get_default_feature_groups",
+    "get_feature_groups",
     "get_preprocessor",
+    "get_transformers",
     "pipelines",
     "preprocessing",
     "transformers",

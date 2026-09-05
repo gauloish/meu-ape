@@ -4,14 +4,14 @@ Utiliza a API interna de Geocodificação através do pacote `geocoding-client`
 para converter endereços em coordenadas de latitude e longitude de forma vetorizada.
 """
 
-import logging
 from typing import Dict
 
 import numpy as np
 import pandas as pd
 from geocoding_client import GeocodingClient
+from logging_settings import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 # Limites geográficos padrão para o município de Goiânia - GO
 MIN_LATITUDE: float = -16.85

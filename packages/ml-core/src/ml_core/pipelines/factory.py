@@ -1,4 +1,4 @@
-"""Fábrica para construção de pipelines de Machine Learning com pré-processamento e estimador MoE."""
+"""Fábrica para construção de pipelines de Machine Learning com pré-processamento e estimador Regressor (XGBoost)."""
 
 from typing import Any
 
@@ -10,10 +10,10 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, OrdinalEncoder
 
-from ml_core.estimators import MoEEstimator
+from ml_core.estimators import Regressor
 
+from .constants import BINS_INFO, PAIRS, POINTS
 from .feature_groups import FeatureGroups, get_default_feature_groups
-from .constants import BINS_INFO, POINTS, PAIRS
 from ..transformers import (
     BinsDiscretizer,
     ClusterTransformer,
@@ -23,7 +23,14 @@ from ..transformers import (
 
 
 def _cast_bool_to_float(X: Any) -> np.ndarray:
-    """Converte colunas booleanas (incluindo pd.NA, None e tipos nullable) para float com np.nan."""
+    """Converte colunas booleanas (incluindo pd.NA, None e tipos nullable) para float com np.nan.
+
+    Args:
+        X (Any): Estrutura de dados contendo valores booleanos.
+
+    Returns:
+        np.ndarray: Array numpy com valores convertidos para float64.
+    """
     if isinstance(X, pd.DataFrame | pd.Series):
         return X.astype(float).to_numpy()
 
@@ -36,61 +43,38 @@ def get_transformers(
     geodesic_distance_enabled: bool = True,
     ratio_enabled: bool = True,
 ) -> Pipeline:
-    """Constrói o `ColumnTransformer` com sub-pipelines dedicados para cada tipo de feature.
-
-    Sub-pipelines aplicados:
-    - **Numéricas (Discretas e Contínuas):** `SimpleImputer(strategy='median')`.
-    - **Categóricas:** `SimpleImputer(strategy='most_frequent')` + `OneHotEncoder(handle_unknown='ignore')`.
-    - **Ordinais:** `SimpleImputer(strategy='most_frequent')` + `OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)`.
-    - **Booleanas:** Conversão para float numérico + `SimpleImputer(strategy='most_frequent')`.
+    """Constrói o pipeline de engenharia de características composto.
 
     Args:
-        feature_groups (FeatureGroups | None): Agrupamento de features por tipo. Se None, utiliza `get_default_feature_groups()`.
-        remainder (str): Ação para colunas não especificadas ('drop' ou 'passthrough'). Padrão: 'drop'.
-        sparse_threshold (float): Limiar para saída esparsa no ColumnTransformer. Padrão: 0.0 (retorna arrays densos).
+        bins_discretizer_enabled (bool): Se True, ativa a discretização por bins. Padrão: True.
+        cluster_enabled (bool): Se True, ativa a transformação por clusters. Padrão: True.
+        geodesic_distance_enabled (bool): Se True, calcula distâncias geodésicas. Padrão: True.
+        ratio_enabled (bool): Se True, calcula razões entre colunas numéricas. Padrão: True.
 
     Returns:
-        ColumnTransformer: Transformador de colunas configurado.
+        Pipeline: Pipeline do scikit-learn contendo os transformadores selecionados.
     """
     steps: list[tuple[str, TransformerMixin]] = []
 
     # 1. Transformer para Discretizador por Bins
     if bins_discretizer_enabled:
-        bin_discretizer = BinsDiscretizer(
-            bins_info=BINS_INFO
-        )
-
-        steps.append(
-            ("bins_discretizer", bin_discretizer)
-        )
+        bin_discretizer = BinsDiscretizer(bins_info=BINS_INFO)
+        steps.append(("bins_discretizer", bin_discretizer))
 
     # 2. Transformer para Clusterizador
     if cluster_enabled:
         cluster_transformer = ClusterTransformer()
-
-        steps.append(
-            ("cluster_transformer", cluster_transformer)
-        )
+        steps.append(("cluster_transformer", cluster_transformer))
 
     # 3. Transformer para Distâncias Geodésicas
     if geodesic_distance_enabled:
-        geodesic_distance_transformer = GeodesicDistanceTransformer(
-            points=POINTS
-        )
+        geodesic_distance_transformer = GeodesicDistanceTransformer(points=POINTS)
+        steps.append(("geodesic_distance_transformer", geodesic_distance_transformer))
 
-        steps.append(
-            ("geodesic_distance_transformer", geodesic_distance_transformer)
-        )
-
-    # 4. Transformer para Features Booleanas
+    # 4. Transformer para Razões entre Features
     if ratio_enabled:
-        ratio_transformer = RatioTransformer(
-            pairs=PAIRS,
-        )
-
-        steps.append(
-            ("ratio_transformer", ratio_transformer)
-        )
+        ratio_transformer = RatioTransformer(pairs=PAIRS)
+        steps.append(("ratio_transformer", ratio_transformer))
 
     return Pipeline(steps=steps)
 
@@ -103,15 +87,15 @@ def get_preprocessor(
     """Constrói o `ColumnTransformer` com sub-pipelines dedicados para cada tipo de feature.
 
     Sub-pipelines aplicados:
-    - **Numéricas (Discretas e Contínuas):** `SimpleImputer(strategy='median')`.
+    - **Numéricas:** `SimpleImputer(strategy='median')`.
     - **Categóricas:** `SimpleImputer(strategy='most_frequent')` + `OneHotEncoder(handle_unknown='ignore')`.
-    - **Ordinais:** `SimpleImputer(strategy='most_frequent')` + `OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)`.
+    - **Ordinais:** `SimpleImputer(strategy='most_frequent')` + `OrdinalEncoder(unknown_value=-1)`.
     - **Booleanas:** Conversão para float numérico + `SimpleImputer(strategy='most_frequent')`.
 
     Args:
         feature_groups (FeatureGroups | None): Agrupamento de features por tipo. Se None, utiliza `get_default_feature_groups()`.
         remainder (str): Ação para colunas não especificadas ('drop' ou 'passthrough'). Padrão: 'drop'.
-        sparse_threshold (float): Limiar para saída esparsa no ColumnTransformer. Padrão: 0.0 (retorna arrays densos).
+        sparse_threshold (float): Limiar para saída esparsa no ColumnTransformer. Padrão: 0.0.
 
     Returns:
         ColumnTransformer: Transformador de colunas configurado.
@@ -196,46 +180,25 @@ def create_training_pipeline(
     remainder: str = "drop",
     **model_kwargs: Any,
 ) -> Pipeline:
-    """Cria o pipeline completo conectando o pré-processamento ao modelo preditivo (MoEEstimator).
-
-    Estrutura do pipeline:
-    ```
-    Pipeline(steps=[
-        ('transformers', Pipeline(...)),
-        ('preprocessor', ColumnTransformer(...)),
-        ('model', MoEEstimator(...))
-    ])
-    ```
+    """Cria a pipeline completa de treinamento contendo transformadores, pré-processamento e o estimador Regressor.
 
     Args:
-        model (BaseEstimator | None): Estimador final do pipeline. Se None, instancia `MoEEstimator(**model_kwargs)`.
-        feature_groups (FeatureGroups | None): Agrupamento de features por tipo.
-        remainder (str): Ação para colunas residuais ('drop' ou 'passthrough'). Padrão: 'drop'.
-        **model_kwargs (Any): Argumentos opcionais repassados para a instanciação do `MoEEstimator` se `model` for None.
+        model (BaseEstimator | None): Instância do estimador a utilizar. Se None, instancia um `Regressor`.
+        feature_groups (FeatureGroups | None): Definição de grupos de colunas por tipo.
+        remainder (str): Comportamento para colunas extras no preprocessor. Padrão: 'drop'.
+        **model_kwargs (Any): Argumentos adicionais para inicializar o `Regressor` caso `model` seja None.
 
     Returns:
-        Pipeline: Instância de `sklearn.pipeline.Pipeline` pronta para `fit`, `predict` e `cross_validate`.
-
-    Example:
-        >>> from ml_core.pipelines import FeatureGroups, create_training_pipeline
-        >>> groups = FeatureGroups(
-        ...     numeric_features=["area_m2", "quartos"],
-        ...     categorical_features=["tipo_imovel"],
-        ...     boolean_features=["piscina"],
-        ... )
-        >>> pipeline = create_training_pipeline(feature_groups=groups)
-        >>> pipeline.fit(X_train, y_train)
-        >>> y_pred = pipeline.predict(X_test)
+        Pipeline: Pipeline de Machine Learning completo e pronto para fit/predict.
     """
     transformers = get_transformers()
-
     preprocessor = get_preprocessor(
         feature_groups=feature_groups,
         remainder=remainder,
     )
 
     if model is None:
-        model = MoEEstimator(**model_kwargs)
+        model = Regressor(**model_kwargs)
 
     return Pipeline(
         steps=[

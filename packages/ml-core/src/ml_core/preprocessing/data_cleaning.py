@@ -4,15 +4,14 @@ Executa a remoção de registros duplicados, remoção de colunas irrelevantes p
 higienização de registros sem preço, padronização de classes categóricas e conversão de dtypes.
 """
 
-import logging
-from logging import Logger
+from logging_settings import setup_logger
 
 import numpy as np
 import pandas as pd
 
 from .constants import UNUSED_FEATURES
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class DataCleaner:

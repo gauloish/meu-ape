@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 import pandas as pd
-from ml_core.estimators import MoEEstimator
+from ml_core.estimators import Regressor
 from ml_core.pipelines import (
     FeatureGroups,
     create_training_pipeline,
@@ -131,7 +131,7 @@ class TestTrainingPipeline(unittest.TestCase):
         self.assertFalse(np.isnan(X_trans).any())
 
     def test_create_training_pipeline_structure(self) -> None:
-        """Testa a criação da pipeline completa com o MoEEstimator anexado."""
+        """Testa a criação da pipeline completa com o Regressor anexado."""
         pipeline = create_training_pipeline(feature_groups=self.groups, random_state=42)
 
         self.assertIsInstance(pipeline, Pipeline)
@@ -140,13 +140,12 @@ class TestTrainingPipeline(unittest.TestCase):
         self.assertEqual(pipeline.steps[1][0], "preprocessor")
         self.assertIsInstance(pipeline.steps[1][1], ColumnTransformer)
         self.assertEqual(pipeline.steps[2][0], "model")
-        self.assertIsInstance(pipeline.steps[2][1], MoEEstimator)
+        self.assertIsInstance(pipeline.steps[2][1], Regressor)
 
     def test_pipeline_fit_and_predict_end_to_end(self) -> None:
         """Testa o ciclo de vida completo (fit, predict, evaluate) da pipeline."""
         pipeline = create_training_pipeline(
             feature_groups=self.groups,
-            calibration_cv=2,
             random_state=42,
         )
 
@@ -156,18 +155,21 @@ class TestTrainingPipeline(unittest.TestCase):
         self.assertEqual(preds.shape, (len(self.df),))
         self.assertTrue(np.all(np.isfinite(preds)))
 
-        # Extração de métricas com o preprocessor aplicado
-        X_transformed = pipeline.named_steps["preprocessor"].transform(self.df)
-        report = pipeline.named_steps["model"].evaluate(X_transformed, self.y)
+        # Extração de métricas com o preprocessor aplicado no modelo final
+        preprocessor = Pipeline([
+            ("transformers", pipeline.named_steps["transformers"]),
+            ("preprocessor", pipeline.named_steps["preprocessor"]),
+        ])
+        X_transformed = preprocessor.transform(self.df)
+        metrics = pipeline.named_steps["model"].evaluate(X_transformed, self.y)
 
-        self.assertGreater(report.global_metrics.rmse, 0.0)
-        self.assertGreater(report.gating_metrics.accuracy, 0.0)
+        self.assertGreater(metrics.rmse, 0.0)
+        self.assertGreater(metrics.r2, 0.0)
 
     def test_pipeline_cross_validate(self) -> None:
         """Testa a execução de cross_validate no pipeline completo."""
         pipeline = create_training_pipeline(
             feature_groups=self.groups,
-            calibration_cv=2,
             random_state=42,
         )
 

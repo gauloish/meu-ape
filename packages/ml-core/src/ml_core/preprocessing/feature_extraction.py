@@ -4,16 +4,16 @@ Extrai variáveis booleanas de comodidades (ex: piscina, academia, churrasqueira
 e refina a classificação do imóvel em `tipo_imovel` a partir dos textos da coluna `titulo`.
 """
 
-import logging
 import re
-from logging import Logger
 from typing import List
 
 import pandas as pd
 
+from logging_settings import setup_logger
+
 from .constants import FEATURES_MAPPING
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class FeatureExtractor:

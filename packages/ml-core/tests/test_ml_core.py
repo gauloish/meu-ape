@@ -1,6 +1,6 @@
 """Suíte de testes de integração e unidade para o pacote ml-core."""
 
-import logging
+from logging_settings import setup_logger
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -15,7 +15,7 @@ from ml_core.transformers import (
     RatioTransformer,
 )
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 def test_geocoding_enricher_batch_integration():

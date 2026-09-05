@@ -8,7 +8,9 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "feature-engine>=1.9.4",
     "geocoding-client",
+    "logging-settings",
     "numpy>=2.5.1",
     "pandas>=3.0.5",
     "pydantic>=2.13.4",
@@ -21,4 +23,5 @@ requires = ["uv_build>=0.11.18,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
+logging-settings = { workspace = true }
 geocoding-client = { workspace = true }

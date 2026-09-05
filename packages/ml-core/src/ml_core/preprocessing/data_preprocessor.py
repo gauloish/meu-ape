@@ -4,8 +4,7 @@ Executa todas as etapas de limpeza e tratamento dos dados, extração de feature
 dos dados com geocodificação.
 """
 
-import logging
-from logging import Logger
+from logging_settings import setup_logger
 
 import numpy as np
 import pandas as pd
@@ -16,7 +15,7 @@ from .geocoding_enrichment import GeocodingEnricher
 
 from geocoding_client import GeocodingClient
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 class DataPreprocessor:
