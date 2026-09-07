@@ -11,7 +11,7 @@ from datasets import load_dataset
 from dotenv import load_dotenv
 from evaluation.evaluate import run_nested_cv
 from huggingface_hub import HfApi
-from ml_core.pipelines import FeatureGroups, create_training_pipeline
+from ml_core.pipelines import FeatureGroups, get_feature_groups, create_training_pipeline
 from ml_core.preprocessing.data_preprocessor import DataPreprocessor
 from optimization.optimize import optimize_hyperparameters
 from logging_settings import setup_logger
@@ -128,9 +128,11 @@ def train_model(
     # 1. Carregamento e Pré-processamento
     df_raw = load_raw_dataset(dataset_source)
     X, y = prepare_data(df_raw)
+    feature_groups = get_feature_groups(X)
 
     # 2. Avaliação via Nested CV (opcional)
     evaluation_metrics = {}
+
     if run_evaluation:
         logger.info("Executando Nested CV para extração de métricas do modelo...")
         evaluation_metrics = run_nested_cv(
@@ -148,7 +150,7 @@ def train_model(
     best_params, best_score = optimize_hyperparameters(
         X=X,
         y=y,
-        n_trials=n_trials,
+        n_trials=n_trials*k_folds,
         k_folds=k_folds,
         random_state=random_state,
         feature_groups=feature_groups,
@@ -171,7 +173,7 @@ def train_model(
     }
 
     metrics_payload = {
-        "best_cv_rmse": best_score,
+        "best_cv_mae": best_score,
         "best_params": best_params_jsonable,
         "n_samples": int(len(y)),
         "n_features": int(X.shape[1]),
@@ -179,6 +181,7 @@ def train_model(
     }
 
     joblib.dump(final_pipeline, model_file_path)
+
     with open(metrics_file_path, "w", encoding="utf-8") as f:
         json.dump(metrics_payload, f, indent=2, ensure_ascii=False)
 

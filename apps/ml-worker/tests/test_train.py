@@ -72,7 +72,7 @@ def test_train_model_local_export(synthetic_raw_df, synthetic_groups, tmp_path):
             feature_groups=synthetic_groups,
         )
 
-        assert "best_cv_rmse" in result
+        assert "best_cv_mae" in result
         assert (tmp_path / "model.joblib").exists()
         assert (tmp_path / "metrics.json").exists()
 
@@ -103,7 +103,7 @@ def test_train_model_push_to_hub_mocked(synthetic_raw_df, synthetic_groups, tmp_
             feature_groups=synthetic_groups,
         )
 
-        assert "best_cv_rmse" in result
+        assert "best_cv_mae" in result
 
         # Verifica se as APIs do Hugging Face foram chamadas com os parâmetros de segurança esperados
         mock_hf_api_cls.assert_called_once()
