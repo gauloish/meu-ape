@@ -60,7 +60,7 @@ def optimize_hyperparameters(
         feature_groups (FeatureGroups | None): Grupos de colunas para o pré-processador.
 
     Returns:
-        tuple[dict[str, Any], float]: Tupla contendo o dicionário dos melhores hiperparâmetros e a melhor pontuação de RMSE.
+        tuple[dict[str, Any], float]: Tupla contendo o dicionário dos melhores hiperparâmetros e a melhor pontuação de MAE.
     """
     logger.info(f"Iniciando otimização com Optuna: n_trials={n_trials}, k_folds={k_folds}.")
 
@@ -90,13 +90,13 @@ def optimize_hyperparameters(
                 error_score="raise",
             )
 
-            rmse = -float(np.mean(scores))
+            mae = -float(np.mean(scores))
 
         except Exception as exc:
             logger.warning(f"Trial {trial.number} falhou com erro: {exc}")
-            rmse = 1e9
+            mae = 1e9
 
-        return rmse
+        return mae
 
     sampler = optuna.samplers.TPESampler(
         seed=random_state,

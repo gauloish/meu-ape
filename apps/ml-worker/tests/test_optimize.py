@@ -39,7 +39,7 @@ def test_optimize_hyperparameters_fast(synthetic_data):
     """Garante que a otimização executa com n_trials=1 e k_folds=2 em milissegundos."""
     X, y, groups = synthetic_data
 
-    best_params, best_rmse = optimize_hyperparameters(
+    best_params, best_mae = optimize_hyperparameters(
         X=X,
         y=y,
         n_trials=1,
@@ -52,5 +52,5 @@ def test_optimize_hyperparameters_fast(synthetic_data):
     assert "model__max_depth" in best_params
     assert "model__n_estimators" in best_params
     assert "model__learning_rate" in best_params
-    assert isinstance(best_rmse, float)
-    assert best_rmse > 0.0
+    assert isinstance(best_mae, float)
+    assert best_mae > 0.0
