@@ -108,7 +108,7 @@ def main() -> None:
             k_folds=args.k_folds,
             feature_groups=feature_groups,
         )
-        logger.info(f"Otimização concluída. Melhor RMSE: {best_score:.4f}")
+        logger.info(f"Otimização concluída. Melhor MAE: {best_score:.4f}")
         logger.info(f"Melhores parâmetros: {best_params}")
 
 
