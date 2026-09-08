@@ -256,16 +256,32 @@ name = "backend"
 version = "0.1.0"
 source = { virtual = "apps/backend" }
 dependencies = [
+    { name = "fastapi" },
     { name = "geocoding-client" },
+    { name = "huggingface-hub" },
+    { name = "joblib" },
     { name = "logging-settings" },
     { name = "ml-core" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "python-dotenv" },
+    { name = "slowapi" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "fastapi", specifier = ">=0.141.1" },
     { name = "geocoding-client", editable = "packages/geocoding-client" },
+    { name = "huggingface-hub", specifier = ">=1.29.0" },
+    { name = "joblib", specifier = ">=1.5.3" },
     { name = "logging-settings", editable = "packages/logging-settings" },
     { name = "ml-core", editable = "packages/ml-core" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "pydantic-settings", specifier = ">=2.15.0" },
+    { name = "python-dotenv", specifier = ">=1.2.2" },
+    { name = "slowapi", specifier = ">=0.1.10" },
+    { name = "uvicorn", specifier = ">=0.52.4" },
 ]
 
 [[package]]
