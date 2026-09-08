@@ -48,8 +48,6 @@ class DataPreprocessor:
             .pipe(self.geocoding_enricher)
         )
 
-        df.to_parquet("train_clean.parquet", index=False)
-
         logger.info("Pipeline de pré-processamento finalizada com sucesso.")
 
         return df

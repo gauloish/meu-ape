@@ -1,5 +1,8 @@
 version: '3'
 
+dotenv:
+  - ".env"
+
 tasks:
   train:
     desc: "Executa o treinamento do modelo com otimização de hiperparâmetros e Nested CV"
