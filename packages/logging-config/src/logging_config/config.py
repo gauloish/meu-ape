@@ -3,15 +3,8 @@ import sys
 from loguru import logger
 
 
-def config_logger(name: str):
-    """Faz a configuração do logger com formatação da mensagem de logging com cores no terminal.
-
-    Args:
-        name (str): Nome da aplicação que está usando o logger.
-
-    Returns:
-        Logger: Logger da aplicação configurado e pronto para ser usado.
-    """
+def config_logger() -> None:
+    """Faz a configuração do logger com formatação da mensagem de logging com cores no terminal."""
     logger.remove()
 
     logger.level(name="DEBUG", color="<cyan>")
@@ -31,5 +24,3 @@ def config_logger(name: str):
         sink=sys.stdout,
         format=format,
     )
-
-    return logger.bind(servico=name)
