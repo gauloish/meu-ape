@@ -1,7 +1,7 @@
 [project]
-name = "logging-settings"
+name = "logging-config"
 version = "0.1.0"
-description = "Pacote com configurações personalizadas de logging para o projeto meu-ape."
+description = "Add your description here"
 readme = "README.md"
 authors = [
     { name = "gauloish", email = "125079293+gauloish@users.noreply.github.com" }
@@ -10,8 +10,8 @@ requires-python = ">=3.12"
 dependencies = []
 
 [project.scripts]
-logging-settings = "logging_settings:main"
+logging-config = "logging_config:main"
 
 [build-system]
-requires = ["uv_build>=0.11.18,<0.12.0"]
+requires = ["uv_build>=0.11.8,<0.12.0"]
 build-backend = "uv_build"
