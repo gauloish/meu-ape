@@ -1,9 +1,9 @@
 import sys
 
-from loguru import Logger, logger
+from loguru import logger
 
 
-def setup_logger(name: str) -> Logger:
+def setup_logger(name: str):
     """Faz a configuração do logger com formatação da mensagem de logging com cores no terminal.
 
     Args:
