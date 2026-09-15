@@ -1,38 +1,35 @@
-
-import logging
 import sys
 
-from .formatter import ColorFormatter
+from loguru import Logger, logger
 
 
-def setup_logger(
-    name: str,
-    level: str | None = "INFO",
-    use_color: bool = True
-) -> logging.Logger:
-    """
-    Configura o logger para a aplicação.
-    
+def setup_logger(name: str) -> Logger:
+    """Faz a configuração do logger com formatação da mensagem de logging com cores no terminal.
+
     Args:
-        name: Nome do logger.
-        level: Nível de log.
-        use_color: Se deve usar cores no log.
-    
+        name (str): Nome da aplicação que está usando o logger.
+
     Returns:
-        Logger configurado.
+        Logger: Logger da aplicação configurado e pronto para ser usado.
     """
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)
+    logger.remove()
 
-    if use_color:
-        console_handler.setFormatter(ColorFormatter())
+    logger.level(name="DEBUG", color="<cyan>")
+    logger.level(name="INFO", color="<green>")
+    logger.level(name="WARNING", color="<magenta>")
+    logger.level(name="ERROR", color="<red>")
+    logger.level(name="CRITICAL", color="<red><bold>")
 
-    log_level = getattr(logging, level.upper(), logging.INFO)
-
-    logging.basicConfig(
-        level=log_level,
-        handlers=[console_handler],
-        force=True,
+    format = (
+        "[<bold>{name}:{function}</bold>] "
+        "[<blue>{time:YYYY-MM-DD HH:mm:ss}</blue>] "
+        "[<level>{level}</level>] "
+        "{message}"
     )
 
-    return logging.getLogger(name)
+    logger.add(
+        sink=sys.stdout,
+        format=format,
+    )
+
+    return logger.bind(servico=name)
