@@ -14,9 +14,9 @@ def config_logger() -> None:
     logger.level(name="CRITICAL", color="<red><bold>")
 
     format = (
-        "[<bold>{name}:{function}</bold>] "
-        "[<blue>{time:YYYY-MM-DD HH:mm:ss}</blue>] "
-        "[<level>{level}</level>] "
+        "[ <bold>{name}:{function}</bold> ] "
+        "[ <blue>{time:YYYY-MM-DD HH:mm:ss}</blue> ] "
+        "[ <level>{level}</level> ] "
         "{message}"
     )
 
