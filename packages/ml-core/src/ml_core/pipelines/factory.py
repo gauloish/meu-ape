@@ -181,8 +181,8 @@ def get_preprocessor(
 
 
 def create_training_pipeline(
-    model: BaseEstimator | None = None,
     feature_groups: FeatureGroups,
+    model: BaseEstimator | None = None,
     remainder: str = "drop",
     **model_kwargs: Any,
 ) -> Pipeline:
