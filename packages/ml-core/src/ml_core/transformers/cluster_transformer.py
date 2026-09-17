@@ -73,6 +73,7 @@ class ClusterTransformer(TransformerMixin, BaseEstimator):
 
         if len(valid_coords) > 0:
             actual_n_clusters = min(self.n_clusters, len(valid_coords))
+            
             self.kmeans_ = KMeans(
                 n_clusters=actual_n_clusters,
                 random_state=self.random_state,

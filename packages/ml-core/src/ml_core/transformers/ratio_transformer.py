@@ -3,7 +3,7 @@
 Cria novas variáveis contínuas calculando a razão entre pares de características especificadas.
 """
 
-from typing import Any, List, Self, Tuple
+from typing import Any, Self
 
 import numpy as np
 import pandas as pd
@@ -15,7 +15,7 @@ class RatioTransformer(TransformerMixin, BaseEstimator):
     """Transformador scikit-learn para geração de razões entre pares de colunas contínuas.
 
     Atributos:
-        pairs (List[Tuple[str, str]]): Lista de pares (coluna_numerador, coluna_denominador).
+        pairs (list[tuple[str, str]]): Lista de pares (coluna_numerador, coluna_denominador).
         sep (str): Separador textual usado no nome da nova coluna. Padrão: '_por_'.
 
     Example:
@@ -26,16 +26,16 @@ class RatioTransformer(TransformerMixin, BaseEstimator):
 
     def __init__(
         self,
-        pairs: List[Tuple[str, str]],
+        pairs: list[tuple[str, str]],
         sep: str = "_por_",
     ) -> None:
         """Inicializa o transformador de razões.
 
         Args:
-            pairs (List[Tuple[str, str]]): Lista de pares de nomes de características.
+            pairs (list[tuple[str, str]]): Lista de pares de nomes de características.
             sep (str): Separador utilizado no nome da nova variável. Padrão: '_por_'.
         """
-        self.pairs: List[Tuple[str, str]] = pairs
+        self.pairs: list[tuple[str, str]] = pairs
         self.sep: str = sep
 
     def fit(self, X: pd.DataFrame, y: Any = None) -> Self:
@@ -94,18 +94,22 @@ class RatioTransformer(TransformerMixin, BaseEstimator):
             ValueError: Se faltarem colunas necessárias.
         """
         if not isinstance(X, pd.DataFrame):
-            raise TypeError(f"{self.__class__.__name__} espera um pandas.DataFrame, mas recebeu {type(X).__name__}.")
+            raise TypeError(
+                f"{self.__class__.__name__} espera um pandas.DataFrame, mas recebeu {type(X).__name__}."
+            )
 
         missing = []
         for num_col, den_col in self.pairs:
             if num_col not in X.columns:
                 missing.append(num_col)
-                
+
             if den_col not in X.columns:
                 missing.append(den_col)
 
         if missing:
-            raise ValueError(f"Colunas obrigatórias ausentes no DataFrame: {sorted(set(missing))}")
+            raise ValueError(
+                f"Colunas obrigatórias ausentes no DataFrame: {sorted(set(missing))}"
+            )
 
     def __sklearn_is_fitted__(self) -> bool:
         """Verifica se o transformador foi ajustado."""

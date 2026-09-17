@@ -4,7 +4,7 @@ Calcula a distância geodésica em quilômetros (usando a fórmula de Haversine)
 e um conjunto de pontos de referência fixos (ex: centro urbano, aeroporto, shoppings).
 """
 
-from typing import Any, Dict, Self, Tuple
+from typing import Any, Self
 
 import numpy as np
 import pandas as pd
@@ -28,7 +28,7 @@ class GeodesicDistanceTransformer(TransformerMixin, BaseEstimator):
 
     def __init__(
         self,
-        points: Dict[str, Tuple[float, float]],
+        points: dict[str, tuple[float, float]],
         lat_feature: str = "latitude",
         lon_feature: str = "longitude",
         prefix: str = "distancia_",
@@ -43,7 +43,7 @@ class GeodesicDistanceTransformer(TransformerMixin, BaseEstimator):
             prefix (str): Prefixo do nome das novas colunas. Padrão: 'distancia_'.
             suffix (str): Sufixo do nome das novas colunas. Padrão: '_km'.
         """
-        self.points: Dict[str, Tuple[float, float]] = points
+        self.points: dict[str, tuple[float, float]] = points
         self.lat_feature: str = lat_feature
         self.lon_feature: str = lon_feature
         self.prefix: str = prefix
@@ -81,7 +81,9 @@ class GeodesicDistanceTransformer(TransformerMixin, BaseEstimator):
 
         X_out = X.copy()
 
-        coords = np.radians(X_out[[self.lat_feature, self.lon_feature]].to_numpy(dtype=np.float64))
+        coords = np.radians(
+            X_out[[self.lat_feature, self.lon_feature]].to_numpy(dtype=np.float64)
+        )
 
         mask = np.all(~np.isnan(coords), axis=1)
         valid_coords = coords[mask]
@@ -93,7 +95,10 @@ class GeodesicDistanceTransformer(TransformerMixin, BaseEstimator):
 
             if len(valid_coords) > 0:
                 ref_point_rad = np.radians([[lat, lon]])
-                distances = haversine_distances(valid_coords, ref_point_rad).ravel() * EARTH_RADIUS_KM
+                distances = (
+                    haversine_distances(valid_coords, ref_point_rad).ravel()
+                    * EARTH_RADIUS_KM
+                )
 
                 X_out.loc[valid_indices, feature_name] = distances
 
@@ -110,13 +115,17 @@ class GeodesicDistanceTransformer(TransformerMixin, BaseEstimator):
             ValueError: Se faltarem colunas de coordenadas.
         """
         if not isinstance(X, pd.DataFrame):
-            raise TypeError(f"{self.__class__.__name__} espera um pandas.DataFrame, mas recebeu {type(X).__name__}.")
+            raise TypeError(
+                f"{self.__class__.__name__} espera um pandas.DataFrame, mas recebeu {type(X).__name__}."
+            )
 
         required = {self.lat_feature, self.lon_feature}
         missing = required - set(X.columns)
 
         if missing:
-            raise ValueError(f"Colunas obrigatórias ausentes no DataFrame: {sorted(missing)}")
+            raise ValueError(
+                f"Colunas obrigatórias ausentes no DataFrame: {sorted(missing)}"
+            )
 
     def __sklearn_is_fitted__(self) -> bool:
         """Verifica se o transformador foi ajustado."""

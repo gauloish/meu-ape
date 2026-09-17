@@ -5,7 +5,7 @@ from .cluster_transformer import ClusterTransformer
 from .geodesic_distance_transformer import GeodesicDistanceTransformer
 from .ratio_transformer import RatioTransformer
 
-__all__ = [
+__all__: list[str] = [
     "BinsDiscretizer",
     "ClusterTransformer",
     "GeodesicDistanceTransformer",
