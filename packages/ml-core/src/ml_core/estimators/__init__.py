@@ -8,10 +8,10 @@ from .metrics import (
     calculate_regression_metrics,
 )
 
-__all__ = [
-    "Regressor",
+__all__: list[str] = [
     "RegressionMetrics",
     "RegressionMetricsReport",
+    "Regressor",
     "calculate_aggregated_metrics",
     "calculate_regression_metrics",
 ]
