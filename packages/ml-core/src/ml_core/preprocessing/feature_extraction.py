@@ -5,15 +5,14 @@ e refina a classificação do imóvel em `tipo_imovel` a partir dos textos da co
 """
 
 import re
-from typing import List
 
 import pandas as pd
-
-from logging_settings import setup_logger
+from logging_config import config_logger
+from loguru import logger
 
 from .constants import FEATURES_MAPPING
 
-logger = setup_logger(__name__)
+config_logger()
 
 
 class FeatureExtractor:
@@ -21,9 +20,8 @@ class FeatureExtractor:
 
     def __init__(self) -> None:
         """Inicializa o extrator de características."""
-        pass
 
-    def _get_amenities_pattern(self, amenities: List[str]) -> str:
+    def _get_amenities_pattern(self, amenities: list[str]) -> str:
         """Gera o padrão Regex seguro contendo as palavras-chave da comodidade, escapando caracteres especiais.
 
         Args:
@@ -36,7 +34,9 @@ class FeatureExtractor:
 
         return "|".join(escaped_amenities)
 
-    def _extract_amenities_feature(self, df: pd.DataFrame, amenities: List[str]) -> pd.Series:
+    def _extract_amenities_feature(
+        self, df: pd.DataFrame, amenities: list[str]
+    ) -> pd.Series:
         """Extrai uma coluna booleana indicando se o texto da coluna `comodidades` contém alguma palavra-chave.
 
         Args:
@@ -51,11 +51,11 @@ class FeatureExtractor:
 
         pattern = self._get_amenities_pattern(amenities)
 
-        return (df["comodidades"]
+        return (
+            df["comodidades"]
             .fillna("")
             .astype(str)
-            .str
-            .contains(pat=pattern, regex=True, case=False)
+            .str.contains(pat=pattern, regex=True, case=False)
             .astype("boolean")
         )
 
@@ -99,12 +99,7 @@ class FeatureExtractor:
 
         logger.info("Extraindo tipo do imóvel a partir da coluna 'titulo'.")
 
-        first_word = (df["titulo"]
-            .fillna("")
-            .astype(str)
-            .str
-            .split(n=1, expand=True)[0]
-        )
+        first_word = df["titulo"].fillna("").astype(str).str.split(n=1, expand=True)[0]
 
         class_mapping = {
             "Casa": "casa",
@@ -117,7 +112,7 @@ class FeatureExtractor:
 
         extracted_classes = first_word.map(class_mapping).fillna("outro")
 
-        mask = (df["tipo_imovel"] == "outro")
+        mask = df["tipo_imovel"] == "outro"
         df.loc[mask, "tipo_imovel"] = extracted_classes[mask]
 
         return df.drop(columns=["titulo"], errors="ignore")
@@ -144,8 +139,8 @@ class FeatureExtractor:
         """
         logger.info("Iniciando etapa de extração de características.")
 
-        df = (df
-            .pipe(self._extract_amenities_features)
+        df = (
+            df.pipe(self._extract_amenities_features)
             .pipe(self._extract_real_state_classes)
             .pipe(self._convert_dtypes)
         )

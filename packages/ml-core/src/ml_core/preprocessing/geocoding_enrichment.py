@@ -4,14 +4,13 @@ Utiliza a API interna de Geocodificação através do pacote `geocoding-client`
 para converter endereços em coordenadas de latitude e longitude de forma vetorizada.
 """
 
-from typing import Dict
-
 import numpy as np
 import pandas as pd
 from geocoding_client import GeocodingClient
-from logging_settings import setup_logger
+from logging_config import config_logger
+from loguru import logger
 
-logger = setup_logger(__name__)
+config_logger()
 
 # Limites geográficos padrão para o município de Goiânia - GO
 MIN_LATITUDE: float = -16.85
@@ -76,17 +75,15 @@ class GeocodingEnricher:
 
         df = self._get_address_feature(df)
 
-        valid_addresses = [
-            addr
-            for addr in df["endereco"].dropna().unique()
-            if addr
-        ]
+        valid_addresses = [addr for addr in df["endereco"].dropna().unique() if addr]
 
-        lat_map: Dict[str, float] = {}
-        lon_map: Dict[str, float] = {}
+        lat_map: dict[str, float] = {}
+        lon_map: dict[str, float] = {}
 
         if valid_addresses:
-            logger.info(f"Enviando {len(valid_addresses)} endereços únicos para geocodificação em lote.")
+            logger.info(
+                f"Enviando {len(valid_addresses)} endereços únicos para geocodificação em lote."
+            )
 
             try:
                 batch_response = self.client.batch_geocode_sync(valid_addresses)
@@ -102,11 +99,7 @@ class GeocodingEnricher:
         df["latitude"] = df["endereco"].map(lat_map).astype(np.float64)
         df["longitude"] = df["endereco"].map(lon_map).astype(np.float64)
 
-        drop_cols = [
-            c
-            for c in ["endereco", "rua", "bairro"]
-            if c in df.columns
-        ]
+        drop_cols = [c for c in ["endereco", "rua", "bairro"] if c in df.columns]
 
         return df.drop(columns=drop_cols)
 
@@ -127,10 +120,14 @@ class GeocodingEnricher:
         if "latitude" not in df.columns or "longitude" not in df.columns:
             return df
 
-        mask_lat = df["latitude"].isna() | ((df["latitude"] >= MIN_LATITUDE) & (df["latitude"] <= MAX_LATITUDE))
-        mask_lon = df["longitude"].isna() | ((df["longitude"] >= MIN_LONGITUDE) & (df["longitude"] <= MAX_LONGITUDE))
+        mask_lat = df["latitude"].isna() | (
+            (df["latitude"] >= MIN_LATITUDE) & (df["latitude"] <= MAX_LATITUDE)
+        )
+        mask_lon = df["longitude"].isna() | (
+            (df["longitude"] >= MIN_LONGITUDE) & (df["longitude"] <= MAX_LONGITUDE)
+        )
 
-        valid_mask = (mask_lat & mask_lon)
+        valid_mask = mask_lat & mask_lon
 
         return df[valid_mask].reset_index(drop=True)
 
@@ -156,8 +153,8 @@ class GeocodingEnricher:
         """
         logger.info("Iniciando etapa de enriquecimento geográfico por geocodificação.")
 
-        df = (df
-            .pipe(self._extract_geocoded_features)
+        df = (
+            df.pipe(self._extract_geocoded_features)
             .pipe(self._clip_out_of_bounds_samples)
             .pipe(self._convert_dtypes)
         )

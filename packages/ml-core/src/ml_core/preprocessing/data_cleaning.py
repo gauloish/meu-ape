@@ -4,14 +4,14 @@ Executa a remoção de registros duplicados, remoção de colunas irrelevantes p
 higienização de registros sem preço, padronização de classes categóricas e conversão de dtypes.
 """
 
-from logging_settings import setup_logger
-
 import numpy as np
 import pandas as pd
+from logging_config import config_logger
+from loguru import logger
 
 from .constants import UNUSED_FEATURES
 
-logger = setup_logger(__name__)
+config_logger()
 
 
 class DataCleaner:
@@ -19,7 +19,6 @@ class DataCleaner:
 
     def __init__(self) -> None:
         """Inicializa o limpador de dados."""
-        pass
 
     def _drop_duplicates(self, df: pd.DataFrame) -> pd.DataFrame:
         """Remove registros totalmente duplicados do conjunto de dados.
@@ -45,11 +44,7 @@ class DataCleaner:
         """
         logger.info(f"Removendo colunas não utilizadas: {UNUSED_FEATURES}.")
 
-        cols_to_drop = [
-            c
-            for c in UNUSED_FEATURES
-            if c in df.columns
-        ]
+        cols_to_drop = [c for c in UNUSED_FEATURES if c in df.columns]
 
         return df.drop(columns=cols_to_drop, errors="ignore")
 
@@ -63,15 +58,14 @@ class DataCleaner:
             pd.DataFrame: DataFrame filtrado.
         """
         if "preco" not in df.columns:
-            logger.info("Coluna 'preco' não encontrada. Etapa de remoção por falta de preço ignorada.")
+            logger.info(
+                "Coluna 'preco' não encontrada. Etapa de remoção por falta de preço ignorada."
+            )
             return df
 
         logger.info("Removendo registros sem informação de preço ('preco').")
 
-        return (df
-            .dropna(subset=["preco"])
-            .reset_index(drop=True)
-        )
+        return df.dropna(subset=["preco"]).reset_index(drop=True)
 
     def _rename_classes(self, df: pd.DataFrame) -> pd.DataFrame:
         """Padroniza os nomes das categorias da variável `tipo_imovel`.
@@ -109,41 +103,50 @@ class DataCleaner:
         if "titulo" not in df.columns:
             return df
 
-        logger.info("Validando consistência entre a coluna 'titulo' e características extraídas.")
+        logger.info(
+            "Validando consistência entre a coluna 'titulo' e características extraídas."
+        )
 
         try:
             titulo_str = df["titulo"].fillna("").astype(str)
 
             title_data = pd.DataFrame(
                 {
-                    "quartos": titulo_str.str.extract(r"(?P<quarto>\d+) quarto[s]?")["quarto"],
-                    "banheiros": titulo_str.str.extract(r"(?P<banheiro>\d+) banheiro[s]?")["banheiro"],
+                    "quartos": titulo_str.str.extract(r"(?P<quarto>\d+) quarto[s]?")[
+                        "quarto"
+                    ],
+                    "banheiros": titulo_str.str.extract(
+                        r"(?P<banheiro>\d+) banheiro[s]?"
+                    )["banheiro"],
                     "vagas": titulo_str.str.extract(r"(?P<vaga>\d+) vaga[s]?")["vaga"],
                     "area_m2": titulo_str.str.extract(r"(?P<area>\d+) m²")["area"],
                 },
                 dtype=np.float64,
             )
 
-            extracted_data = df.filter(items=[
-                "quartos",
-                "banheiros",
-                "vagas",
-                "area_m2"
-            ], axis="columns")
+            extracted_data = df.filter(
+                items=["quartos", "banheiros", "vagas", "area_m2"], axis="columns"
+            )
 
             title_arr = title_data.to_numpy().reshape(-1)
             extracted_arr = extracted_data.to_numpy().reshape(-1)
             notna_mask = pd.Series(title_arr).notna().to_numpy()
 
             if notna_mask.sum() > 0:
-                correct_count = (title_arr[notna_mask] == extracted_arr[notna_mask]).sum()
+                correct_count = (
+                    title_arr[notna_mask] == extracted_arr[notna_mask]
+                ).sum()
                 total_count = notna_mask.sum()
                 accuracy_pct = 100.0 * (correct_count / total_count)
 
-                logger.info(f"Percentual de consistência dos dados do título: {accuracy_pct:.2f}%.")
+                logger.info(
+                    f"Percentual de consistência dos dados do título: {accuracy_pct:.2f}%."
+                )
 
         except Exception as exc:
-            logger.warning(f"Não foi possível validar consistência dos dados do título: {exc}")
+            logger.warning(
+                f"Não foi possível validar consistência dos dados do título: {exc}"
+            )
 
         return df
 
@@ -169,8 +172,8 @@ class DataCleaner:
         """
         logger.info("Iniciando pipeline de limpeza dos dados.")
 
-        df = (df
-            .pipe(self._drop_duplicates)
+        df = (
+            df.pipe(self._drop_duplicates)
             .pipe(self._drop_features)
             .pipe(self._drop_missing)
             .pipe(self._rename_classes)

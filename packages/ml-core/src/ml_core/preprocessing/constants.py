@@ -1,8 +1,5 @@
-from typing import List, Dict
-
-
 # ----- Unused Features -----
-UNUSED_FEATURES: List[str] = [
+UNUSED_FEATURES: list[str] = [
     "id",
     "url",
     "moeda",
@@ -15,7 +12,7 @@ UNUSED_FEATURES: List[str] = [
 
 # ===== Water / Pool =====
 
-POOL_AMENITIES: List[str] = [
+POOL_AMENITIES: list[str] = [
     "Pool",
     "Adult Pool",
     "Childrens Pool",
@@ -29,7 +26,7 @@ POOL_AMENITIES: List[str] = [
 
 # ===== Gourmet =====
 
-GOURMET_AMENITIES: List[str] = [
+GOURMET_AMENITIES: list[str] = [
     "Barbecue Grill",
     "Barbecue Balcony",
     "Pizza Oven",
@@ -40,12 +37,12 @@ GOURMET_AMENITIES: List[str] = [
 
 # ==== Health & Wellness =====
 
-FITNESS_AMENITIES: List[str] = [
+FITNESS_AMENITIES: list[str] = [
     "Gym",
     "Fitness Room",
 ]
 
-WELLNESS_AMENITIES: List[str] = [
+WELLNESS_AMENITIES: list[str] = [
     "Sauna",
     "Spa",
     "Whirlpool",
@@ -55,7 +52,7 @@ WELLNESS_AMENITIES: List[str] = [
 
 # ===== Social Areas =====
 
-SOCIAL_AMENITIES: List[str] = [
+SOCIAL_AMENITIES: list[str] = [
     "Party Hall",
     "Adult Game Room",
     "Games Room",
@@ -67,13 +64,13 @@ SOCIAL_AMENITIES: List[str] = [
     "Zen Space",
 ]
 
-WORK_AMENITIES: List[str] = [
+WORK_AMENITIES: list[str] = [
     "Coworking",
     "Meeting Room",
     "Library",
 ]
 
-KIDS_AMENITIES: List[str] = [
+KIDS_AMENITIES: list[str] = [
     "Playground",
     "Toys Place",
     "Sand Pit",
@@ -82,7 +79,7 @@ KIDS_AMENITIES: List[str] = [
 
 # ===== Sports ======
 
-SPORTS_AMENITIES: List[str] = [
+SPORTS_AMENITIES: list[str] = [
     "Sports Court",
     "Tennis Court",
     "Football Field",
@@ -95,13 +92,13 @@ SPORTS_AMENITIES: List[str] = [
 
 # ===== Security =====
 
-ACCESS_CONTROL_AMENITIES: List[str] = [
+ACCESS_CONTROL_AMENITIES: list[str] = [
     "Gated Community",
     "Concierge 24h",
     "Reception",
 ]
 
-SECURITY_AMENITIES: List[str] = [
+SECURITY_AMENITIES: list[str] = [
     "Watchman",
     "Patrol",
     "Alarm System",
@@ -117,7 +114,7 @@ SECURITY_AMENITIES: List[str] = [
 
 # ===== Mobility =====
 
-GARAGE_AMENITIES: List[str] = [
+GARAGE_AMENITIES: list[str] = [
     "Garage",
     "Parking",
     "Guest Parking",
@@ -127,27 +124,27 @@ GARAGE_AMENITIES: List[str] = [
 
 # ===== Accessibility =====
 
-ACCESSIBILITY_AMENITIES: List[str] = [
+ACCESSIBILITY_AMENITIES: list[str] = [
     "Elevator",
     "Disabled Access",
 ]
 
 # ===== Pets =====
 
-PET_AMENITIES: List[str] = [
+PET_AMENITIES: list[str] = [
     "Pets Allowed",
     "Pet Space",
 ]
 
 # ===== Outdoor =====
 
-BALCONY_AMENITIES: List[str] = [
+BALCONY_AMENITIES: list[str] = [
     "Balcony",
     "Wall Balcony",
     "Deck",
 ]
 
-GREEN_AREA_AMENITIES: List[str] = [
+GREEN_AREA_AMENITIES: list[str] = [
     "Garden",
     "Backyard",
     "Green Space",
@@ -158,7 +155,7 @@ GREEN_AREA_AMENITIES: List[str] = [
     "Tree Climbing",
 ]
 
-VIEW_AMENITIES: List[str] = [
+VIEW_AMENITIES: list[str] = [
     "Exterior View",
     "Lake",
     "River",
@@ -170,7 +167,7 @@ VIEW_AMENITIES: List[str] = [
 
 # ===== Finishes =====
 
-FINISH_AMENITIES: List[str] = [
+FINISH_AMENITIES: list[str] = [
     "Porcelain",
     "Blindex Box",
     "Sanca",
@@ -187,7 +184,7 @@ FINISH_AMENITIES: List[str] = [
     "Platibanda",
 ]
 
-BUILTIN_FURNITURE_AMENITIES: List[str] = [
+BUILTIN_FURNITURE_AMENITIES: list[str] = [
     "Planned Furniture",
     "Builtin Wardrobe",
     "Bedroom Wardrobe",
@@ -197,7 +194,7 @@ BUILTIN_FURNITURE_AMENITIES: List[str] = [
     "Dress Room2",
 ]
 
-LAYOUT_AMENITIES: List[str] = [
+LAYOUT_AMENITIES: list[str] = [
     "Lavabo",
     "Reversible Room",
     "Dividers",
@@ -209,7 +206,7 @@ LAYOUT_AMENITIES: List[str] = [
 
 # ===== Kitchen & Service =====
 
-KITCHEN_AMENITIES: List[str] = [
+KITCHEN_AMENITIES: list[str] = [
     "Kitchen",
     "American Kitchen",
     "Large Kitchen",
@@ -219,7 +216,7 @@ KITCHEN_AMENITIES: List[str] = [
     "Lunch Room",
 ]
 
-SERVICE_AMENITIES: List[str] = [
+SERVICE_AMENITIES: list[str] = [
     "Laundry",
     "Service Area",
     "Service Bathroom",
@@ -230,7 +227,7 @@ SERVICE_AMENITIES: List[str] = [
 
 # ===== Comfort =====
 
-COMFORT_AMENITIES: List[str] = [
+COMFORT_AMENITIES: list[str] = [
     "Air Conditioning",
     "Heating",
     "Natural Ventilation",
@@ -238,19 +235,19 @@ COMFORT_AMENITIES: List[str] = [
     "Large Window",
 ]
 
-FURNISHED_AMENITIES: List[str] = [
+FURNISHED_AMENITIES: list[str] = [
     "Furnished",
 ]
 
 # ===== Technology =====
 
-SMART_HOME_AMENITIES: List[str] = [
+SMART_HOME_AMENITIES: list[str] = [
     "Smart Apartment",
     "Smart Condominium",
     "Digital Locker",
 ]
 
-CONNECTIVITY_AMENITIES: List[str] = [
+CONNECTIVITY_AMENITIES: list[str] = [
     "Internet Access",
     "Cable Tv",
     "Full Cabling",
@@ -258,26 +255,26 @@ CONNECTIVITY_AMENITIES: List[str] = [
 
 # ===== Infraestructure =====
 
-ENERGY_AMENITIES: List[str] = [
+ENERGY_AMENITIES: list[str] = [
     "Solar Energy",
     "Electric Generator",
     "Eletric Charger",
 ]
 
-WATER_INFRASTRUCTURE_AMENITIES: List[str] = [
+WATER_INFRASTRUCTURE_AMENITIES: list[str] = [
     "Water Tank",
     "Artesian Well",
     "Well",
 ]
 
-SUSTAINABILITY_AMENITIES: List[str] = [
+SUSTAINABILITY_AMENITIES: list[str] = [
     "Eco Garbage Collector",
     "Eco Condominium",
 ]
 
 # ----- Feature Mappings -----
 
-FEATURES_MAPPING: Dict[str, List[str]] = {
+FEATURES_MAPPING: dict[str, list[str]] = {
     "piscina": POOL_AMENITIES,
     "espaco_gourmet": GOURMET_AMENITIES,
     "academia": FITNESS_AMENITIES,

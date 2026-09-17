@@ -4,18 +4,16 @@ Executa todas as etapas de limpeza e tratamento dos dados, extração de feature
 dos dados com geocodificação.
 """
 
-from logging_settings import setup_logger
-
-import numpy as np
 import pandas as pd
+from geocoding_client import GeocodingClient
+from logging_config import config_logger
+from loguru import logger
 
 from .data_cleaning import DataCleaner
 from .feature_extraction import FeatureExtractor
 from .geocoding_enrichment import GeocodingEnricher
 
-from geocoding_client import GeocodingClient
-
-logger = setup_logger(__name__)
+config_logger()
 
 
 class DataPreprocessor:
@@ -42,8 +40,8 @@ class DataPreprocessor:
         """
         logger.info("Iniciando pipeline de pré-processamento.")
 
-        df = (df
-            .pipe(self.data_cleaner)
+        df = (
+            df.pipe(self.data_cleaner)
             .pipe(self.feature_extractor)
             .pipe(self.geocoding_enricher)
         )
