@@ -12,14 +12,14 @@ from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, OrdinalEnc
 
 from ml_core.estimators import Regressor
 
-from .constants import BINS_INFO, PAIRS, POINTS
-from .feature_groups import FeatureGroups, get_default_feature_groups
 from ..transformers import (
     BinsDiscretizer,
     ClusterTransformer,
     GeodesicDistanceTransformer,
     RatioTransformer,
 )
+from .constants import BINS_INFO, PAIRS, POINTS
+from .feature_groups import FeatureGroups
 
 
 def _cast_bool_to_float(X: Any) -> np.ndarray:
@@ -80,7 +80,7 @@ def get_transformers(
 
 
 def get_preprocessor(
-    feature_groups: FeatureGroups | None = None,
+    feature_groups: FeatureGroups,
     remainder: str = "drop",
     sparse_threshold: float = 0.0,
 ) -> ColumnTransformer:
@@ -100,9 +100,6 @@ def get_preprocessor(
     Returns:
         ColumnTransformer: Transformador de colunas configurado.
     """
-    if feature_groups is None:
-        feature_groups = get_default_feature_groups()
-
     transformers: list[tuple[str, Pipeline, list[str]]] = []
 
     # 1. Pipeline para Features Numéricas
@@ -120,7 +117,10 @@ def get_preprocessor(
     if feature_groups.categorical_features:
         categorical_pipeline = Pipeline(
             steps=[
-                ("imputer", SimpleImputer(strategy="most_frequent", keep_empty_features=True)),
+                (
+                    "imputer",
+                    SimpleImputer(strategy="most_frequent", keep_empty_features=True),
+                ),
                 (
                     "encoder",
                     OneHotEncoder(handle_unknown="ignore", sparse_output=False),
@@ -135,7 +135,10 @@ def get_preprocessor(
     if feature_groups.ordinal_features:
         ordinal_pipeline = Pipeline(
             steps=[
-                ("imputer", SimpleImputer(strategy="most_frequent", keep_empty_features=True)),
+                (
+                    "imputer",
+                    SimpleImputer(strategy="most_frequent", keep_empty_features=True),
+                ),
                 (
                     "encoder",
                     OrdinalEncoder(
@@ -160,7 +163,10 @@ def get_preprocessor(
                         feature_names_out="one-to-one",
                     ),
                 ),
-                ("imputer", SimpleImputer(strategy="most_frequent", keep_empty_features=True)),
+                (
+                    "imputer",
+                    SimpleImputer(strategy="most_frequent", keep_empty_features=True),
+                ),
             ]
         )
         transformers.append(
@@ -176,7 +182,7 @@ def get_preprocessor(
 
 def create_training_pipeline(
     model: BaseEstimator | None = None,
-    feature_groups: FeatureGroups | None = None,
+    feature_groups: FeatureGroups,
     remainder: str = "drop",
     **model_kwargs: Any,
 ) -> Pipeline:
@@ -184,7 +190,7 @@ def create_training_pipeline(
 
     Args:
         model (BaseEstimator | None): Instância do estimador a utilizar. Se None, instancia um `Regressor`.
-        feature_groups (FeatureGroups | None): Definição de grupos de colunas por tipo.
+        feature_groups (FeatureGroups): Definição de grupos de colunas por tipo.
         remainder (str): Comportamento para colunas extras no preprocessor. Padrão: 'drop'.
         **model_kwargs (Any): Argumentos adicionais para inicializar o `Regressor` caso `model` seja None.
 
