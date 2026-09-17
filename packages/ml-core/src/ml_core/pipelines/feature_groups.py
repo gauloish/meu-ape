@@ -1,6 +1,7 @@
 """Definição de agrupamento e esquemas de features para o pipeline de Machine Learning."""
 
 from dataclasses import dataclass, field
+
 import pandas as pd
 
 
@@ -35,33 +36,11 @@ class FeatureGroups:
         )
 
 
-def get_default_feature_groups() -> FeatureGroups:
-    """Retorna os grupos de características padrão do esquema de dados imobiliários.
-
-    Returns:
-        FeatureGroups: Agrupamento padrão de colunas numéricas, categóricas, ordinais e booleanas.
-    """
-    return FeatureGroups(
-        numeric_features=[
-            "area_m2",
-            "quartos",
-            "banheiros",
-            "vagas",
-            "condominio",
-            "latitude",
-            "longitude",
-        ],
-        categorical_features=["tipo_imovel", "bairro"],
-        ordinal_features=["faixa_area"],
-        boolean_features=["piscina", "academia"],
-    )
-
-
-def get_feature_groups(X: pd.DataFrame | None = None) -> FeatureGroups:
+def get_feature_groups(X: pd.DataFrame) -> FeatureGroups:
     """Obtém os grupos de features dinamicamente a partir de um DataFrame ou retorna o agrupamento padrão.
 
     Args:
-        X (pd.DataFrame | None): DataFrame com os dados de entrada. Se None, retorna o esquema padrão.
+        X (pd.DataFrame): DataFrame com os dados de entrada. Se None, retorna o esquema padrão.
 
     Returns:
         FeatureGroups: Instância contendo as colunas agrupadas por tipo.
@@ -69,9 +48,6 @@ def get_feature_groups(X: pd.DataFrame | None = None) -> FeatureGroups:
     Raises:
         TypeError: Se X for fornecido mas não for um pd.DataFrame.
     """
-    if X is None:
-        return get_default_feature_groups()
-
     if not isinstance(X, pd.DataFrame):
         raise TypeError("X deve ser um pd.DataFrame.")
 
@@ -83,13 +59,8 @@ def get_feature_groups(X: pd.DataFrame | None = None) -> FeatureGroups:
         include=["object", "string"]
     ).columns.to_list()
 
-    ordinal_features = X.select_dtypes(
-        include=["category"]
-    ).columns.to_list()
-
-    boolean_features = X.select_dtypes(
-        include=["bool", "boolean"]
-    ).columns.to_list()
+    ordinal_features = X.select_dtypes(include=["category"]).columns.to_list()
+    boolean_features = X.select_dtypes(include=["bool", "boolean"]).columns.to_list()
 
     return FeatureGroups(
         numeric_features=numeric_features,
