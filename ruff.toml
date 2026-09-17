@@ -1,0 +1,14 @@
+[format]
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
+nested-string-quote-style = "preferred"
+
+[lint.isort]
+known-first-party = [
+    "packages/geocoding-client",
+    "packages/logging-config",
+    "packages/ml-core",
+]
+
+[lint.pydocstyle]
+convention = "google"
