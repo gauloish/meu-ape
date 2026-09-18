@@ -4,33 +4,39 @@ from typing import Any
 
 import numpy as np
 import optuna
+from logging_config import config_logger
+from loguru import logger
 from ml_core.pipelines import FeatureGroups, create_training_pipeline
-from logging_settings import setup_logger
 from sklearn.model_selection import KFold, cross_val_score
 
-logger = setup_logger(__name__)
+config_logger()
 
 
 def search_space(
     trial: optuna.Trial,
-    random_state: int | None = 42,
+    random_state: int | None,
 ) -> dict[str, Any]:
-    """Define o espaço de busca de hiperparâmetros para o modelo XGBRegressor no pipeline.
+    """Define o espaço de busca de hiperparâmetros para o pipeline.
 
     Args:
         trial (optuna.Trial): Instância do trial do Optuna.
-        random_state (int | None): Semente aleatória para reprodutibilidade. Padrão: 42.
+        random_state (int | None): Semente aleatória para reprodutibilidade.
 
     Returns:
         dict[str, Any]: Dicionário com os hiperparâmetros sugeridos prefixados para o modelo.
     """
+
     return {
         "model__n_estimators": trial.suggest_int("n_estimators", 100, 1000, step=50),
-        "model__learning_rate": trial.suggest_float("learning_rate", 1e-3, 1e-1, log=True),
+        "model__learning_rate": trial.suggest_float(
+            "learning_rate", 1e-3, 1e-1, log=True
+        ),
         "model__max_depth": trial.suggest_int("max_depth", 2, 20),
         "model__min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
         "model__subsample": trial.suggest_float("subsample", 0.5, 1.0, step=0.1),
-        "model__colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0, step=0.1),
+        "model__colsample_bytree": trial.suggest_float(
+            "colsample_bytree", 0.5, 1.0, step=0.1
+        ),
         "model__reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 1e2, log=True),
         "model__reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 1e2, log=True),
         "model__objective": "reg:absoluteerror",
@@ -42,29 +48,29 @@ def search_space(
 def optimize_hyperparameters(
     X: Any,
     y: Any,
+    feature_groups: FeatureGroups,
     n_trials: int = 20,
     k_folds: int = 5,
-    random_state: int | None = 42,
+    random_state: int | None = 1667,
     show_progress_bar: bool = False,
-    feature_groups: FeatureGroups | None = None,
 ) -> tuple[dict[str, Any], float]:
     """Executa a otimização de hiperparâmetros utilizando Optuna.
 
     Args:
         X (Any): Matriz de características de entrada.
-        y (Any): Vetor alvo contínuo (preço do imóvel).
-        n_trials (int): Número de trials do Optuna. Padrão: 20.
-        k_folds (int): Número de folds para a Validação Cruzada interna. Padrão: 5.
-        random_state (int | None): Semente aleatória para reprodutibilidade. Padrão: 42.
-        show_progress_bar (bool): Se deve exibir a barra de progresso do Optuna. Padrão: False.
-        feature_groups (FeatureGroups | None): Grupos de colunas para o pré-processador.
+        y (Any): Vetor alvo contínuo (preços dos imóveis).
+        feature_groups (FeatureGroups): Grupos de colunas para o pré-processador.
+        n_trials (int, optional): Número de trials do Optuna. Defaults: 20.
+        k_folds (int, optional): Número de folds para a Validação Cruzada interna. Defaults: 5.
+        random_state (int | None, optional): Semente aleatória para reprodutibilidade. Defaults: 42.
+        show_progress_bar (bool, optional): Se deve exibir a barra de progresso do Optuna. Defaults: False.
 
     Returns:
         tuple[dict[str, Any], float]: Tupla contendo o dicionário dos melhores hiperparâmetros e a melhor pontuação de MAE.
     """
-    logger.info(f"Iniciando otimização com Optuna: n_trials={n_trials}, k_folds={k_folds}.")
-
-    # optuna.logging.set_verbosity(optuna.logging.WARNING)
+    logger.info(
+        f"Iniciando otimização com Optuna: n_trials={n_trials}, k_folds={k_folds}."
+    )
 
     cv = KFold(
         n_splits=k_folds,
@@ -94,7 +100,7 @@ def optimize_hyperparameters(
 
         except Exception as exc:
             logger.warning(f"Trial {trial.number} falhou com erro: {exc}")
-            mae = 1e9
+            mae = float("inf")
 
         return mae
 
@@ -115,6 +121,7 @@ def optimize_hyperparameters(
 
     logger.info(f"Otimização finalizada. Melhor MAE: {study.best_value:.4f}")
 
-    best_params = search_space(study.best_trial, random_state)
+    best_params = study.best_params
+    best_value = float(study.best_value)
 
-    return best_params, float(study.best_value)
+    return best_params, best_value
