@@ -1,13 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
-from ..config import settings
+from src.config import settings
 
 
 def _build_engine() -> AsyncEngine:
-    """Build async engine to database with optimized connection pool.
+    """Constrói uma engine assíncrona para o banco de dados com um pool de conexão otimizado.
 
     Returns:
-        AsyncEngine: Configured async database engine.
+        AsyncEngine: Engine assíncrona configurada.
     """
     return create_async_engine(
         settings.database_url,

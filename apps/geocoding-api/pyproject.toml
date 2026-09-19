@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
     "logging-config",
+    "loguru>=0.7.3",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.15.0",
     "python-dotenv>=1.2.2",
@@ -16,6 +17,9 @@ dependencies = [
     "sqlalchemy>=2.0.51",
     "uvicorn>=0.52.4",
 ]
+
+[tool.ruff]
+src = ["."]
 
 [tool.pyright]
 extraPaths = ["."]

@@ -1,4 +1,5 @@
 from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -9,22 +10,30 @@ class GeocodingData(BaseModel):
     address: str = Field(..., description="Endereço original usado na busca")
     latitude: float = Field(..., description="Latitude da coordenada")
     longitude: float = Field(..., description="Longitude da coordenada")
-    formatted_address: str = Field(..., description="Endereço formatado retornado pelo Nominatim")
+    formatted_address: str = Field(
+        ..., description="Endereço formatado retornado pelo Nominatim"
+    )
 
 
 class GeocodingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    source: str = Field(..., description="Origem do dado: 'cache' (banco) ou 'nominatim' (API externa)")
+    source: str = Field(
+        ..., description="Origem do dado: 'cache' (banco) ou 'nominatim' (API externa)"
+    )
     data: GeocodingData
 
 
 class HealthResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    status: str = Field(..., description="Status atual da aplicação ('online', 'degraded', 'offline')")
+    status: str = Field(
+        ..., description="Status atual da aplicação ('online', 'degraded', 'offline')"
+    )
     message: str = Field(..., description="Mensagem detalhada do status")
-    database: bool = Field(..., description="Conectividade com banco de dados PostgreSQL")
+    database: bool = Field(
+        ..., description="Conectividade com banco de dados PostgreSQL"
+    )
     nominatim: bool = Field(..., description="Conectividade com servidor Nominatim")
 
 
@@ -42,7 +51,9 @@ class BatchGeocodingRequest(BaseModel):
 class BatchGeocodingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    results: list[GeocodingResponse] = Field(..., description="Lista de resultados correspondentes")
+    results: list[GeocodingResponse] = Field(
+        ..., description="Lista de resultados correspondentes"
+    )
 
 
 class CoordinateRequest(BaseModel):
@@ -56,7 +67,9 @@ class ReverseGeocodingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     source: str = Field(..., description="Origem do dado ('cache' ou 'nominatim')")
-    data: dict[str, Any] = Field(..., description="Dados do endereço retornado pelo Nominatim")
+    data: dict[str, Any] = Field(
+        ..., description="Dados do endereço retornado pelo Nominatim"
+    )
 
 
 class BatchReverseGeocodingRequest(BaseModel):
@@ -75,10 +88,14 @@ class ReverseGeocodingResult(BaseModel):
 
     query: CoordinateRequest = Field(..., description="Coordenada original consultada")
     source: str = Field(..., description="Origem ('cache', 'nominatim' ou 'error')")
-    data: dict[str, Any] | None = Field(default=None, description="Dados brutos retornados pelo Nominatim")
+    data: dict[str, Any] | None = Field(
+        default=None, description="Dados brutos retornados pelo Nominatim"
+    )
 
 
 class BatchReverseGeocodingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    results: list[ReverseGeocodingResult] = Field(..., description="Resultados do reverse geocoding em lote")
+    results: list[ReverseGeocodingResult] = Field(
+        ..., description="Resultados do reverse geocoding em lote"
+    )

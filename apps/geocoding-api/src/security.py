@@ -1,8 +1,9 @@
 import secrets
+
 from fastapi import HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
 
-from .config import settings
+from src.config import settings
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -31,8 +32,10 @@ async def verify_api_key(
 
     if secrets.compare_digest(api_key, settings.geo_api_key_ml):
         request.state.client_tier = "ml"
+
     elif secrets.compare_digest(api_key, settings.geo_api_key_app):
         request.state.client_tier = "app"
+
     else:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

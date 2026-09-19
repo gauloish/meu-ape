@@ -1,8 +1,9 @@
 import json
+
 from sqlalchemy import Float, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base
+from src.database.base import Base
 
 
 class GeocodingCache(Base):
@@ -28,7 +29,16 @@ class ReverseGeocodingCache(Base):
 
     @classmethod
     def make_key(cls, lat: float, lon: float, precision: int = 5) -> str:
-        """Create a normalized key from coordinates rounded to precision decimals (~1.1m)."""
+        """Gera uma string com as coordenadas da geocodificação normalizadas.
+
+        Args:
+            lat (float): Latitude.
+            lon (float): Longitude
+            precision (int, optional): Precisão da normalização. Defaults to 5.
+
+        Returns:
+            str: String com as coordenadas normalizadas.
+        """
         return f"{round(lat, precision):.{precision}f},{round(lon, precision):.{precision}f}"
 
     def get_data(self) -> dict:

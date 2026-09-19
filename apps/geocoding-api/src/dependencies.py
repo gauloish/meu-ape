@@ -1,9 +1,10 @@
 from collections.abc import AsyncGenerator
+
 import httpx
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .database.session import AsyncSessionLocal
+from src.database.session import AsyncSessionLocal
 
 
 def get_http_client(request: Request) -> httpx.AsyncClient:

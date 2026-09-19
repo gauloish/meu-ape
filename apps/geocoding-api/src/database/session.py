@@ -1,13 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from .engine import engine
+from src.database.engine import engine
 
 
 def _build_session() -> async_sessionmaker[AsyncSession]:
-    """Build asynchronous session maker.
+    """Constrói um gerador de sessão assíncrono.
 
     Returns:
-        async_sessionmaker[AsyncSession]: Asynchronous session maker.
+        async_sessionmaker[AsyncSession]: Gerador de sessão assíncrono.
     """
     return async_sessionmaker(
         bind=engine,

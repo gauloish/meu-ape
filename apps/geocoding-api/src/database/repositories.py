@@ -1,26 +1,25 @@
-import json
+from collections.abc import Iterable
 
-from logging_settings import setup_logger
-from collections.abc import Iterable, Sequence
-
+from logging_config import config_logger
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import GeocodingCache, ReverseGeocodingCache
+from src.database.models import GeocodingCache, ReverseGeocodingCache
 
-logger = setup_logger(__name__)
+config_logger()
 
 
 def normalize_address(address: str) -> str:
-    """Normalize address string for uniform cache lookup.
+    """Normaliza a string de endereço para uniformizar a busca na cache
 
     Args:
-        address (str): Raw input address.
+        address (str): Endereço bruto.
 
     Returns:
-        str: Cleaned, lowercased, and whitespace-collapsed address.
+        str: Endereço limpo, com caracteres em minúsculo e sem espaços desnecessários.
     """
     return " ".join(address.strip().lower().split())
 
@@ -30,67 +29,84 @@ class GeocodingRepository:
         self.session = session
 
     async def get(self, address: str) -> GeocodingCache | None:
-        """Return the geocoded persisted address from database.
+        """
+        Retorna o endereço persistido do banco de dados.
 
         Args:
-            address (str): Address whose geocoded version will be retrieved.
+            address (str): Endereço da busca.
 
         Returns:
-            GeocodingCache | None: Geocoded address object or None.
+            GeocodingCache | None: Geocodificação do endereço. Se não
+            existir, retorna nulo.
         """
         norm_addr = normalize_address(address)
+
         try:
             return await self.session.get(GeocodingCache, norm_addr)
+
         except SQLAlchemyError as e:
             await self.session.rollback()
-            logger.error(f"Error fetching address '{address}': {e}")
+
+            logger.error(f"Erro na busca das coordenadas do endereço '{address}': {e}")
             raise
 
     async def get_many(self, addresses: Iterable[str]) -> dict[str, GeocodingCache]:
-        """Return multiple geocoded persisted addresses mapped by normalized address.
+        """Faz a busca para múltiplos endereços listados.
 
         Args:
-            addresses (Iterable[str]): Addresses to be retrieved.
+            addresses (Iterable[str]): Endereços a serem buscados.
 
         Returns:
-            dict[str, GeocodingCache]: Map of normalized_address -> GeocodingCache.
+            dict[str, GeocodingCache]: Mapeamento dos endereços para as respectivas
+            geocodificações.
         """
         norm_map = {normalize_address(addr): addr for addr in addresses}
+
         if not norm_map:
             return {}
 
         try:
-            stmt = select(GeocodingCache).where(GeocodingCache.address.in_(norm_map.keys()))
+            stmt = select(GeocodingCache).where(
+                GeocodingCache.address.in_(norm_map.keys())
+            )
             result = await self.session.execute(stmt)
             records = result.scalars().all()
+
             return {record.address: record for record in records}
+
         except SQLAlchemyError as e:
             await self.session.rollback()
-            logger.error(f"Error fetching multiple addresses: {e}")
+            logger.error(
+                f"Erro ao fazer a busca das coordenadas de mútiplos endereços: {e}"
+            )
+
             raise
 
     async def add(self, geocoding: GeocodingCache, auto_commit: bool = True) -> None:
-        """Add or update a geocoded address using PostgreSQL upsert.
+        """Adiciona/atualiza um novo endereço geocodificado no banco de dados.
 
         Args:
-            geocoding (GeocodingCache): New geocoded address object.
-            auto_commit (bool): If True, commits the transaction immediately.
+            geocoding (GeocodingCache): Novo objeto de endereço geocodificado.
+            auto_commit (bool): Se True, comita a transação imediatamente no banco de dados.
         """
         await self.add_many([geocoding], auto_commit=auto_commit)
 
-    async def add_many(self, geocodings: Iterable[GeocodingCache], auto_commit: bool = True) -> None:
-        """Add or update multiple geocoded addresses using PostgreSQL upsert.
+    async def add_many(
+        self, geocodings: Iterable[GeocodingCache], auto_commit: bool = True
+    ) -> None:
+        """Adiciona/atualiza múltiplos endereços geocodificados no banco de dados.
 
         Args:
-            geocodings (Iterable[GeocodingCache]): List of geocoded objects.
-            auto_commit (bool): If True, commits transaction.
+            geocodings (Iterable[GeocodingCache]): Lista dos objetos de endereço geocodificados.
+            auto_commit (bool): Se True, comita a transação imediatamente no banco de dados.
         """
         items = list(geocodings)
+
         if not items:
             return
 
-        # Deduplicate items by normalized address in Python memory first
         dedup_map: dict[str, GeocodingCache] = {}
+
         for item in items:
             norm_addr = normalize_address(item.address)
             item.address = norm_addr
@@ -99,16 +115,18 @@ class GeocodingRepository:
         unique_items = list(dedup_map.values())
 
         try:
-            stmt = pg_insert(GeocodingCache).values([
-                {
-                    "address": obj.address,
-                    "latitude": obj.latitude,
-                    "longitude": obj.longitude,
-                    "formatted_address": obj.formatted_address,
-                    "place_id": obj.place_id,
-                }
-                for obj in unique_items
-            ])
+            stmt = pg_insert(GeocodingCache).values(
+                [
+                    {
+                        "address": obj.address,
+                        "latitude": obj.latitude,
+                        "longitude": obj.longitude,
+                        "formatted_address": obj.formatted_address,
+                        "place_id": obj.place_id,
+                    }
+                    for obj in unique_items
+                ]
+            )
             stmt = stmt.on_conflict_do_update(
                 index_elements=["address"],
                 set_={
@@ -129,7 +147,10 @@ class GeocodingRepository:
         except SQLAlchemyError as e:
             if auto_commit:
                 await self.session.rollback()
-            logger.error(f"Error adding multiple addresses to cache: {e}")
+
+            logger.error(
+                f"Erro ao adicionar múltiplos endereços ao banco de dados: {e}"
+            )
             raise
 
 
@@ -138,25 +159,33 @@ class ReverseGeocodingRepository:
         self.session = session
 
     async def get(self, lat: float, lon: float) -> ReverseGeocodingCache | None:
-        """Get reverse geocoding cache by coordinate.
+        """Obtém o endereço (rua e bairro) dadas as coordenadas de entrada (geocodificação reversa).
 
         Args:
             lat (float): Latitude.
             lon (float): Longitude.
 
         Returns:
-            ReverseGeocodingCache | None: Cached reverse result or None.
+            ReverseGeocodingCache | None: Endereço buscado. Se não encontrado, retorna nulo.
         """
         key = ReverseGeocodingCache.make_key(lat, lon)
+
         try:
             return await self.session.get(ReverseGeocodingCache, key)
+
         except SQLAlchemyError as e:
             await self.session.rollback()
-            logger.error(f"Error fetching reverse cache for ({lat}, {lon}): {e}")
+
+            logger.error(
+                f"Erro ao fazer a busca pelo endereços das coordenadas ({lat}, {lon}): {e}"
+            )
             raise
 
-    async def get_many(self, coords: Iterable[tuple[float, float]]) -> dict[str, ReverseGeocodingCache]:
-        """Get multiple reverse geocoding cache records by coordinate tuples.
+    async def get_many(
+        self, coords: Iterable[tuple[float, float]]
+    ) -> dict[str, ReverseGeocodingCache]:
+        """
+        Get multiple reverse geocoding cache records by coordinate tuples.
 
         Args:
             coords (Iterable[tuple[float, float]]): List of (lat, lon) tuples.
@@ -164,22 +193,31 @@ class ReverseGeocodingRepository:
         Returns:
             dict[str, ReverseGeocodingCache]: Map of coord_key -> ReverseGeocodingCache.
         """
-        keys_map = {ReverseGeocodingCache.make_key(lat, lon): (lat, lon) for lat, lon in coords}
+        keys_map = {
+            ReverseGeocodingCache.make_key(lat, lon): (lat, lon) for lat, lon in coords
+        }
+
         if not keys_map:
             return {}
 
         try:
-            stmt = select(ReverseGeocodingCache).where(ReverseGeocodingCache.coord_key.in_(keys_map.keys()))
+            stmt = select(ReverseGeocodingCache).where(
+                ReverseGeocodingCache.coord_key.in_(keys_map.keys())
+            )
             result = await self.session.execute(stmt)
             records = result.scalars().all()
             return {rec.coord_key: rec for rec in records}
         except SQLAlchemyError as e:
             await self.session.rollback()
-            logger.error(f"Error fetching multiple reverse cache entries: {e}")
+            logger.error(
+                f"Erro ao fazer a busca dos endereços de múltiplas coordenadas: {e}"
+            )
             raise
 
-    async def add(self, cache_obj: ReverseGeocodingCache, auto_commit: bool = True) -> None:
-        """Add or update reverse geocoding cache record.
+    async def add(
+        self, cache_obj: ReverseGeocodingCache, auto_commit: bool = True
+    ) -> None:
+        """Adicionar/atualizar o objeto
 
         Args:
             cache_obj (ReverseGeocodingCache): Cache record.
@@ -187,7 +225,9 @@ class ReverseGeocodingRepository:
         """
         await self.add_many([cache_obj], auto_commit=auto_commit)
 
-    async def add_many(self, cache_objs: Iterable[ReverseGeocodingCache], auto_commit: bool = True) -> None:
+    async def add_many(
+        self, cache_objs: Iterable[ReverseGeocodingCache], auto_commit: bool = True
+    ) -> None:
         """Add or update multiple reverse geocoding cache records using upsert.
 
         Args:
@@ -198,19 +238,23 @@ class ReverseGeocodingRepository:
         if not items:
             return
 
-        dedup_map: dict[str, ReverseGeocodingCache] = {obj.coord_key: obj for obj in items}
+        dedup_map: dict[str, ReverseGeocodingCache] = {
+            obj.coord_key: obj for obj in items
+        }
         unique_items = list(dedup_map.values())
 
         try:
-            stmt = pg_insert(ReverseGeocodingCache).values([
-                {
-                    "coord_key": obj.coord_key,
-                    "latitude": obj.latitude,
-                    "longitude": obj.longitude,
-                    "raw_data_json": obj.raw_data_json,
-                }
-                for obj in unique_items
-            ])
+            stmt = pg_insert(ReverseGeocodingCache).values(
+                [
+                    {
+                        "coord_key": obj.coord_key,
+                        "latitude": obj.latitude,
+                        "longitude": obj.longitude,
+                        "raw_data_json": obj.raw_data_json,
+                    }
+                    for obj in unique_items
+                ]
+            )
             stmt = stmt.on_conflict_do_update(
                 index_elements=["coord_key"],
                 set_={
