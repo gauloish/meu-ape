@@ -24,8 +24,8 @@ members = [
     "apps/ml-worker",
     "packages/geocoding-client",
     "packages/ml-core",
-    "notebooks",
     "packages/logging-config",
+    "notebooks",
 ]
 
 [dependency-groups]

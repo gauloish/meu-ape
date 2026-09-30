@@ -9,7 +9,6 @@ dependencies = [
     "geocoding-client",
     "huggingface-hub>=1.29.0",
     "joblib>=1.5.3",
-    "logging-settings",
     "ml-core",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.15.0",
@@ -24,4 +23,3 @@ pythonpath = [".", "src"]
 [tool.uv.sources]
 ml-core = { workspace = true }
 geocoding-client = { workspace = true }
-logging-settings = { workspace = true }
