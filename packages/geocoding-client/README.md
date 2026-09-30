@@ -45,11 +45,11 @@ O cliente utiliza `pydantic-settings` para carregar automaticamente as configura
 
 | Variável | Tipo | Padrão | Descrição |
 | :--- | :--- | :--- | :--- |
-| `GEO_API_URL` | `str` | `http://localhost:8000` | URL base da API interna de Geocodificação. |
+| `GEO_API_URL` | `str` | `http://localhost:8004` | URL base da API interna de Geocodificação. |
 | `GEO_API_KEY` | `str` | `geocoding_secret_key_change_me` | Chave de autenticação M2M enviada no cabeçalho `X-API-Key`. |
 | `GEO_TIMEOUT` | `float` | `15.0` | Timeout padrão para requisições em segundos. |
-| `GEO_MAX_RETRIES` | `int` | `4` | Número máximo de tentativas do Exponential Backoff em erros 429/5xx. |
-| `GEO_BACKOFF_FACTOR` | `float` | `1.5` | Fator multiplicador do intervalo de espera em segundos. |
+| `GEO_MAX_RETRIES` | `int` | `5` | Número máximo de tentativas do Exponential Backoff em erros 429/5xx. |
+| `GEO_BACKOFF_FACTOR` | `float` | `2.0` | Fator multiplicador do intervalo de espera em segundos. |
 
 ---
 
