@@ -41,7 +41,7 @@ RUN chown -R appuser:appgroup /monorepo
 
 USER appuser
 
-EXPOSE 8000
+EXPOSE 8004
 
 # O WORKDIR já é /monorepo/apps/geocoding-api, então o uvicorn achará o src.main
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8004"]

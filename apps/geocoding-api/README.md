@@ -89,31 +89,34 @@ O comando `task run` realiza automaticamente:
 
 Após subir a infraestrutura, a documentação OpenAPI interativa (Swagger UI) estará disponível em:
 
-- **Swagger UI:** `http://localhost:8000/docs`
-- **ReDoc:** `http://localhost:8000/redoc`
+- **Swagger UI:** `http://localhost:8004/docs`
+- **ReDoc:** `http://localhost:8004/redoc`
 
 ---
 
 ## Exemplos de Uso (cURL)
 
+> **Observação:** Nas requisições a seguir, você deve dar ao `X-API-Key` o valor da chave de API das variáveis que você definiu no seu arquivo `.env` (`GEO_API_KEY_APP` ou `GEO_API_KEY_ML`).
+
 ### 1. Geocodificação Direta (Busca Única)
 
 ```bash
-curl -X GET "http://localhost:8000/geocoding/search?address=Praca+do+Trabalhador,+Goiania" \
-     -H "accept: application/json"
+curl -X GET "http://localhost:8004/geocoding/search?address=Praca+do+Trabalhador,+Goiania" \
+     -H "accept: application/json" \
+     -H "X-API-Key: geocoding_secret_key"
 ```
 
 **Resposta de Exemplo (`Cache MISS` - Nominatim):**
 ```json
 {
-  "source": "nominatim",
-  "data": {
-    "place_id": "120973",
-    "address": "Praca do Trabalhador, Goiania",
-    "latitude": -16.66334,
-    "longitude": -49.2617382,
-    "formatted_address": "Praça do Trabalhador, Setor Central, Goiânia, Brasil"
-  }
+    "source": "nominatim",
+    "data": {
+        "place_id": "120973",
+        "address": "Praca do Trabalhador, Goiania",
+        "latitude": -16.66334,
+        "longitude": -49.2617382,
+        "formatted_address": "Praça do Trabalhador, Setor Central, Goiânia, Brasil"
+    }
 }
 ```
 
@@ -122,14 +125,14 @@ Caso a mesma requisição seja repetida, o retorno utilizará a camada de cache:
 **Resposta de Exemplo (`Cache HIT`):**
 ```json
 {
-  "source": "cache",
-  "data": {
-    "place_id": "120973",
-    "address": "Praca do Trabalhador, Goiania",
-    "latitude": -16.66334,
-    "longitude": -49.2617382,
-    "formatted_address": "Praça do Trabalhador, Setor Central, Goiânia, Brasil"
-  }
+    "source": "cache",
+    "data": {
+        "place_id": "120973",
+        "address": "Praca do Trabalhador, Goiania",
+        "latitude": -16.66334,
+        "longitude": -49.2617382,
+        "formatted_address": "Praça do Trabalhador, Setor Central, Goiânia, Brasil"
+    }
 }
 ```
 
@@ -138,8 +141,9 @@ Caso a mesma requisição seja repetida, o retorno utilizará a camada de cache:
 ### 2. Geocodificação em Lote (Batch Search)
 
 ```bash
-curl -X POST "http://localhost:8000/geocoding/search/batch" \
+curl -X POST "http://localhost:8004/geocoding/search/batch" \
      -H "Content-Type: application/json" \
+     -H "X-API-Key: geocoding_secret_key" \
      -d '{
        "addresses": [
          "Praça do Trabalhador, Goiânia",
@@ -151,28 +155,28 @@ curl -X POST "http://localhost:8000/geocoding/search/batch" \
 **Resposta de Exemplo:**
 ```json
 {
-  "results": [
-    {
-      "source": "cache",
-      "data": {
-        "place_id": "120973",
-        "address": "Praça do Trabalhador, Goiânia",
-        "latitude": -16.66334,
-        "longitude": -49.2617382,
-        "formatted_address": "Praça do Trabalhador, Setor Central, Goiânia, Brasil"
-      }
-    },
-    {
-      "source": "nominatim",
-      "data": {
-        "place_id": "981245",
-        "address": "Parque Vaca Brava, Goiânia",
-        "latitude": -16.70751,
-        "longitude": -49.27702,
-        "formatted_address": "Parque Vaca Brava, Setor Bueno, Goiânia, Brasil"
-      }
-    }
-  ]
+    "results": [
+        {
+            "source": "cache",
+            "data": {
+                "place_id": "120973",
+                "address": "Praça do Trabalhador, Goiânia",
+                "latitude": -16.66334,
+                "longitude": -49.2617382,
+                "formatted_address": "Praça do Trabalhador, Setor Central, Goiânia, Brasil"
+            }
+        },
+        {
+            "source": "nominatim",
+            "data": {
+                "place_id": "981245",
+                "address": "Parque Vaca Brava, Goiânia",
+                "latitude": -16.70751,
+                "longitude": -49.27702,
+                "formatted_address": "Parque Vaca Brava, Setor Bueno, Goiânia, Brasil"
+            }
+        }
+    ]
 }
 ```
 
@@ -181,25 +185,58 @@ curl -X POST "http://localhost:8000/geocoding/search/batch" \
 ### 3. Geocodificação Reversa (Coordenadas para Endereço)
 
 ```bash
-curl -X GET "http://localhost:8000/geocoding/reverse?lat=-16.66334&lon=-49.2617382" \
-     -H "accept: application/json"
+curl -X GET "http://localhost:8004/geocoding/reverse?lat=-16.66334&lon=-49.2617382" \
+     -H "accept: application/json" \
+     -H "X-API-Key: geocoding_secret_key" \
 ```
 
+**Resposta do exemplo:**
+```json
+{
+    "source": "nominatim",
+    "data": {
+        "place_id": 120295,
+        "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+        "osm_type": "node",
+        "osm_id": 12820928930,
+        "lat": "-16.6632357",
+        "lon": "-49.2615261",
+        "class": "historic",
+        "type": "monument",
+        "place_rank": 30,
+        "importance": 9.99999999995449e-6,
+        "addresstype": "historic",
+        "name": "Locomotiva",
+        "display_name": "Locomotiva, Avenida Leste-Oeste, Setor Central, Goiânia, 74045-155, Brasil",
+        "address": {
+            "historic": "Locomotiva",
+            "road": "Avenida Leste-Oeste",
+            "suburb": "Setor Central",
+            "city": "Goiânia",
+            "postcode": "74045-155",
+            "country":"Brasil",
+            "country_code": "br"
+        },
+        "boundingbox": ["-16.6632857","-16.6631857","-49.2615761","-49.2614761"]
+    }
+}
+```
 ---
 
 ### 4. Health Check da Aplicação
 
 ```bash
-curl -X GET "http://localhost:8000/health" \
-     -H "accept: application/json"
+curl -X GET "http://localhost:8004/health" \
+     -H "accept: application/json" \
+     -H "X-API-Key: geocoding_secret_key" \
 ```
 
 **Resposta de Exemplo:**
 ```json
 {
-  "status": "online",
-  "message": "Todos os serviços operacionais.",
-  "database": true,
-  "nominatim": true
+    "status": "online",
+    "message": "Todos os serviços operacionais.",
+    "database": true,
+    "nominatim": true
 }
 ```

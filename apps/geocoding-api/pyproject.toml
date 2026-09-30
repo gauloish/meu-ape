@@ -14,7 +14,7 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "python-dotenv>=1.2.2",
     "slowapi>=0.1.10",
-    "sqlalchemy>=2.0.51",
+    "sqlalchemy[asyncio]>=2.0.51",
     "uvicorn>=0.52.4",
 ]
 
