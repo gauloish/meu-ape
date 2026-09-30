@@ -9,7 +9,7 @@ import pandas as pd
 from logging_config import config_logger
 from loguru import logger
 
-from .constants import UNUSED_FEATURES
+from ml_core.preprocessing.constants import UNUSED_FEATURES
 
 config_logger()
 

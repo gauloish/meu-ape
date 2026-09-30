@@ -1,10 +1,11 @@
 """Módulo de pipelines e transformações compostas do pacote `ml-core`."""
 
-from .factory import create_training_pipeline, get_preprocessor, get_transformers
-from .feature_groups import (
-    FeatureGroups,
-    get_feature_groups,
+from ml_core.pipelines.factory import (
+    create_training_pipeline,
+    get_preprocessor,
+    get_transformers,
 )
+from ml_core.pipelines.feature_groups import FeatureGroups, get_feature_groups
 
 __all__: list[str] = [
     "FeatureGroups",

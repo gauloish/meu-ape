@@ -16,10 +16,7 @@ from sklearn.compose import TransformedTargetRegressor
 from sklearn.utils.validation import check_is_fitted
 from xgboost import XGBRegressor
 
-from .metrics import (
-    RegressionMetrics,
-    calculate_regression_metrics,
-)
+from ml_core.estimator.metrics import RegressionMetrics, calculate_regression_metrics
 
 
 class Regressor(RegressorMixin, BaseEstimator):

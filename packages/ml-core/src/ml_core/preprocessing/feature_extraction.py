@@ -10,7 +10,7 @@ import pandas as pd
 from logging_config import config_logger
 from loguru import logger
 
-from .constants import FEATURES_MAPPING
+from ml_core.preprocessing.constants import FEATURES_MAPPING
 
 config_logger()
 

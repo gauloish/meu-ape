@@ -1,14 +1,14 @@
 """Pacote principal `ml-core` para pipelines, estimadores, transformadores e pré-processamento de ML."""
 
-from . import estimators, pipelines, preprocessing, transformers
-from .estimators import (
+from ml_core import estimators, pipelines, preprocessing, transformers
+from ml_core.estimators import (
     RegressionMetrics,
     RegressionMetricsReport,
     Regressor,
     calculate_aggregated_metrics,
     calculate_regression_metrics,
 )
-from .pipelines import (
+from ml_core.pipelines import (
     FeatureGroups,
     create_training_pipeline,
     get_default_feature_groups,
@@ -16,8 +16,8 @@ from .pipelines import (
     get_preprocessor,
     get_transformers,
 )
-from .preprocessing import DataCleaner, FeatureExtractor, GeocodingEnricher
-from .transformers import (
+from ml_core.preprocessing import DataCleaner, FeatureExtractor, GeocodingEnricher
+from ml_core.transformers import (
     BinsDiscretizer,
     ClusterTransformer,
     GeodesicDistanceTransformer,

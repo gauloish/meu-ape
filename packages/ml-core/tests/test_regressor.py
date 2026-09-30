@@ -4,8 +4,8 @@ import unittest
 
 import numpy as np
 import pandas as pd
+from ml_core.estimators import RegressionMetrics, Regressor
 from sklearn.base import clone
-from ml_core.estimators import Regressor, RegressionMetrics
 
 
 class TestRegressor(unittest.TestCase):
@@ -16,14 +16,19 @@ class TestRegressor(unittest.TestCase):
         np.random.seed(42)
         n_samples = 100
 
-        self.X = pd.DataFrame({
-            "area_m2": np.random.uniform(30.0, 200.0, n_samples),
-            "quartos": np.random.randint(1, 5, n_samples),
-            "vagas": np.random.randint(1, 3, n_samples),
-        })
+        self.X = pd.DataFrame(
+            {
+                "area_m2": np.random.uniform(30.0, 200.0, n_samples),
+                "quartos": np.random.randint(1, 5, n_samples),
+                "vagas": np.random.randint(1, 3, n_samples),
+            }
+        )
 
         self.y = pd.Series(
-            50000.0 + 3000.0 * self.X["area_m2"] + 20000.0 * self.X["quartos"] + np.random.normal(0, 10000, n_samples),
+            50000.0
+            + 3000.0 * self.X["area_m2"]
+            + 20000.0 * self.X["quartos"]
+            + np.random.normal(0, 10000, n_samples),
             name="preco",
         )
 

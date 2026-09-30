@@ -9,9 +9,9 @@ from geocoding_client import GeocodingClient
 from logging_config import config_logger
 from loguru import logger
 
-from .data_cleaning import DataCleaner
-from .feature_extraction import FeatureExtractor
-from .geocoding_enrichment import GeocodingEnricher
+from ml_core.preprocessing.data_cleaning import DataCleaner
+from ml_core.preprocessing.feature_extraction import FeatureExtractor
+from ml_core.preprocessing.geocoding_enrichment import GeocodingEnricher
 
 config_logger()
 

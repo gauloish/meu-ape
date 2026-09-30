@@ -1,12 +1,15 @@
 """Suíte de testes de integração e unidade para o pacote ml-core."""
 
-from logging_settings import setup_logger
 from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
-from geocoding_client.schemas import BatchGeocodingResponse, GeocodingData, GeocodingResponse
-
+from geocoding_client.schemas import (
+    BatchGeocodingResponse,
+    GeocodingData,
+    GeocodingResponse,
+)
+from logging_settings import setup_logger
 from ml_core.preprocessing import DataCleaner, FeatureExtractor, GeocodingEnricher
 from ml_core.transformers import (
     BinsDiscretizer,
@@ -100,7 +103,9 @@ def test_cluster_transformer_no_data_leakage():
     df_test_trans = transformer.transform(X_test)
 
     # Os centroides do KMeans NÃO podem mudar após executar o transform no conjunto de teste!
-    np.testing.assert_array_equal(transformer.kmeans_.cluster_centers_, centroids_after_fit)
+    np.testing.assert_array_equal(
+        transformer.kmeans_.cluster_centers_, centroids_after_fit
+    )
 
     assert "cluster" in df_train_trans.columns
     assert "cluster" in df_test_trans.columns
@@ -179,7 +184,9 @@ def test_geodesic_distance_transformer_index_alignment():
 def test_bins_discretizer():
     """Testa a discretização de colunas contínuas em faixas categóricas."""
     df = pd.DataFrame({"area_m2": [30.0, 75.0, 150.0]})
-    bins_info = [("area_m2", [0, 50, 100, float("inf")], ["pequeno", "medio", "grande"])]
+    bins_info = [
+        ("area_m2", [0, 50, 100, float("inf")], ["pequeno", "medio", "grande"])
+    ]
 
     transformer = BinsDiscretizer(bins_info=bins_info)
     df_trans = transformer.fit_transform(df)
