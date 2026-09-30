@@ -3,7 +3,8 @@
 from typing import Any
 
 import numpy as np
-from logging_settings import setup_logger
+from logging_config import config_logger
+from loguru import logger
 from ml_core.estimators import (
     RegressionMetrics,
     RegressionMetricsReport,
@@ -20,9 +21,8 @@ from sklearn.metrics import (
     root_mean_squared_error,
 )
 from sklearn.model_selection import KFold
-from sklearn.utils import _safe_indexing
 
-logger = setup_logger(__name__)
+config_logger()
 
 
 def compute_metrics(y_true: Any, y_pred: Any) -> dict[str, float]:
@@ -53,14 +53,14 @@ def compute_metrics(y_true: Any, y_pred: Any) -> dict[str, float]:
     }
 
 
-def run_nested_cv(
+def evaluate_pipeline(
     X: Any,
     y: Any,
+    feature_groups: FeatureGroups,
     k_outer: int = 5,
     k_inner: int = 5,
     n_trials: int = 20,
-    random_state: int | None = 42,
-    feature_groups: FeatureGroups | None = None,
+    random_state: int | None = 1667,
 ) -> dict[str, Any]:
     """Executa a Validação Cruzada Aninhada (Nested CV) para estimar a performance não-enviesada do modelo.
 
@@ -75,11 +75,11 @@ def run_nested_cv(
     Args:
         X (Any): Matriz de características.
         y (Any): Vetor alvo contínuo (preço do imóvel).
-        k_outer (int): Número de folds do loop externo. Padrão: 5.
-        k_inner (int): Número de folds do loop interno de otimização. Padrão: 5.
-        n_trials (int): Número de trials do Optuna no loop interno. Padrão: 20.
-        random_state (int | None): Semente aleatória para reprodutibilidade. Padrão: 42.
-        feature_groups (FeatureGroups | None): Grupos de colunas para o pré-processador.
+        feature_groups (FeatureGroups): Grupos de colunas para o pré-processador.
+        k_outer (int): Número de folds do loop externo. Defaults: 5.
+        k_inner (int): Número de folds do loop interno de otimização. Defaults: 5.
+        n_trials (int): Número de trials do Optuna no loop interno. Defaults: 20.
+        random_state (int | None): Semente aleatória para reprodutibilidade. Defaults: 42.
 
     Returns:
         dict[str, Any]: Dicionário com `metrics_summary` (média e desvio padrão) e `fold_metrics`.
@@ -99,14 +99,14 @@ def run_nested_cv(
     for fold_idx, (train_idx, test_idx) in enumerate(outer_cv.split(X), start=1):
         logger.info(f"--- Processando Fold Externo {fold_idx}/{k_outer} ---")
 
-        X_train_outer = _safe_indexing(X, train_idx)
-        y_train_outer = _safe_indexing(y, train_idx)
-        X_test_outer = _safe_indexing(X, test_idx)
-        y_test_outer = _safe_indexing(y, test_idx)
+        X_train = X[train_idx]
+        y_train = y[train_idx]
+        X_test = X[test_idx]
+        y_test = y[test_idx]
 
-        best_params, best_inner_score = optimize_hyperparameters(
-            X=X_train_outer,
-            y=y_train_outer,
+        best_params, best_score = optimize_hyperparameters(
+            X=X_train,
+            y=y_train,
             n_trials=n_trials,
             k_folds=k_inner,
             random_state=random_state,
@@ -114,15 +114,15 @@ def run_nested_cv(
         )
 
         logger.info(
-            f"Fold {fold_idx}: Otimização interna concluída (Melhor MAE interno: {best_inner_score:.2f})."
+            f"Fold {fold_idx}: Otimização interna concluída (Melhor MAE interno: {best_score:.2f})."
         )
 
         pipeline = create_training_pipeline(feature_groups=feature_groups)
         pipeline.set_params(**best_params)
-        pipeline.fit(X_train_outer, y_train_outer)
+        pipeline.fit(X_train, y_train)
 
-        y_pred = pipeline.predict(X_test_outer)
-        metrics = calculate_regression_metrics(y_test_outer, y_pred)
+        y_pred = pipeline.predict(X_test)
+        metrics = calculate_regression_metrics(y_test, y_pred)
 
         fold_results.append(metrics)
 
@@ -136,16 +136,26 @@ def run_nested_cv(
 
     return {
         "metrics_summary": {
-            "r2_mean": float(mean_metrics.r2),
-            "r2_std": float(std_metrics.r2),
-            "rmse_mean": float(mean_metrics.rmse),
-            "rmse_std": float(std_metrics.rmse),
-            "mae_mean": float(mean_metrics.mae),
-            "mae_std": float(std_metrics.mae),
-            "medae_mean": float(mean_metrics.medae),
-            "medae_std": float(std_metrics.medae),
-            "mape_mean": float(mean_metrics.mape),
-            "mape_std": float(std_metrics.mape),
+            "r2": {
+                "mean": float(mean_metrics.r2),
+                "std": float(std_metrics.r2),
+            },
+            "rmse": {
+                "mean": float(mean_metrics.rmse),
+                "std": float(std_metrics.rmse),
+            },
+            "mae": {
+                "mean": float(mean_metrics.mae),
+                "std": float(std_metrics.mae),
+            },
+            "medae": {
+                "mean": float(mean_metrics.medae),
+                "std": float(std_metrics.medae),
+            },
+            "mape": {
+                "mean": float(mean_metrics.mape),
+                "std": float(std_metrics.mape),
+            },
             "mean": mean_metrics.model_dump(),
             "std": std_metrics.model_dump(),
         },
