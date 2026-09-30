@@ -4,9 +4,16 @@ from typing import Any, Self
 import httpx
 from logging_config import config_logger
 from loguru import logger
-from src.config import ClientSettings
-from src.config import settings as default_settings
-from src.exceptions import (
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
+
+from geocoding_client.config import ClientSettings
+from geocoding_client.config import settings as default_settings
+from geocoding_client.exceptions import (
     AddressNotFound,
     AuthenticationError,
     GeoAPIError,
@@ -14,7 +21,7 @@ from src.exceptions import (
     RateLimitExceeded,
     ServerError,
 )
-from src.schemas import (
+from geocoding_client.schemas import (
     BatchGeocodingRequest,
     BatchGeocodingResponse,
     BatchReverseGeocodingRequest,
@@ -23,12 +30,6 @@ from src.schemas import (
     GeocodingResponse,
     HealthResponse,
     ReverseGeocodingResponse,
-)
-from tenacity import (
-    AsyncRetrying,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential_jitter,
 )
 
 config_logger()

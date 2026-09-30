@@ -4,9 +4,9 @@ Fornece cliente assíncrono e síncrono com suporte nativo a requisições indiv
 autenticação M2M via cabeçalho `X-API-Key`, e resiliência via Exponential Backoff.
 """
 
-from src.client import GeocodingClient
-from src.config import ClientSettings, settings
-from src.exceptions import (
+from geocoding_client.client import GeocodingClient
+from geocoding_client.config import ClientSettings, settings
+from geocoding_client.exceptions import (
     AddressNotFound,
     AuthenticationError,
     GeoAPIError,
@@ -14,7 +14,7 @@ from src.exceptions import (
     RateLimitExceeded,
     ServerError,
 )
-from src.schemas import (
+from geocoding_client.schemas import (
     BatchGeocodingRequest,
     BatchGeocodingResponse,
     BatchReverseGeocodingRequest,
