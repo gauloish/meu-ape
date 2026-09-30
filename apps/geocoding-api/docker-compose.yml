@@ -46,8 +46,8 @@ services:
   # 3. API FastAPI
   web_api:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: apps/geocoding-api/Dockerfile
     container_name: geocoding_fastapi
     restart: unless-stopped
     ports:

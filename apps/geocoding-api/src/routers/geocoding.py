@@ -3,18 +3,20 @@ import json
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from logging_config import config_logger
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import settings
-from ..database.models import GeocodingCache, ReverseGeocodingCache
-from ..database.repositories import (
+from src.config import settings
+from src.database.models import GeocodingCache, ReverseGeocodingCache
+from src.database.repositories import (
     GeocodingRepository,
     ReverseGeocodingRepository,
     normalize_address,
 )
-from ..dependencies import get_db, get_http_client
-from ..rate_limiter import get_rate_limit_batch, get_rate_limit_default, limiter
-from ..schemas import (
+from src.dependencies import get_db, get_http_client
+from src.rate_limiter import get_rate_limit_batch, get_rate_limit_default, limiter
+from src.schemas import (
     BatchGeocodingRequest,
     BatchGeocodingResponse,
     BatchReverseGeocodingRequest,
@@ -25,10 +27,9 @@ from ..schemas import (
     ReverseGeocodingResponse,
     ReverseGeocodingResult,
 )
-from ..security import verify_api_key
-from logging_settings import setup_logger
+from src.security import verify_api_key
 
-logger = setup_logger(__name__)
+config_logger()
 
 router = APIRouter(
     prefix="/geocoding",
@@ -170,7 +171,9 @@ async def batch_search_address(
 
     # 2. Busca endereços restantes concorrentemente no Nominatim
     if addresses_to_fetch:
-        logger.info(f"Processando {len(addresses_to_fetch)} endereços de forma concorrente no Nominatim...")
+        logger.info(
+            f"Processando {len(addresses_to_fetch)} endereços de forma concorrente no Nominatim..."
+        )
         semaphore = asyncio.Semaphore(10)
         new_caches_to_save: list[GeocodingCache] = []
 
@@ -230,7 +233,9 @@ async def batch_search_address(
         if new_caches_to_save:
             try:
                 await repo.add_many(new_caches_to_save, auto_commit=True)
-                logger.info(f"{len(new_caches_to_save)} novos endereços salvos no cache em lote.")
+                logger.info(
+                    f"{len(new_caches_to_save)} novos endereços salvos no cache em lote."
+                )
             except Exception as e:
                 logger.error(f"Erro ao salvar lote de endereços no cache: {e}")
 
@@ -305,7 +310,9 @@ async def reverse_geocode(
         )
         try:
             await rev_repo.add(new_cache, auto_commit=True)
-            logger.info(f"Novo reverse geocode salvo no cache para Lat: {lat}, Lon: {lon}")
+            logger.info(
+                f"Novo reverse geocode salvo no cache para Lat: {lat}, Lon: {lon}"
+            )
         except Exception as e:
             logger.error(f"Erro ao salvar reverse cache no banco: {e}")
 
@@ -361,30 +368,42 @@ async def batch_reverse_geocode(
 
     # 2. Busca coordenadas faltantes no Nominatim de forma concorrente
     if coords_to_fetch:
-        logger.info(f"Processando {len(coords_to_fetch)} coordenadas em lote no Nominatim...")
+        logger.info(
+            f"Processando {len(coords_to_fetch)} coordenadas em lote no Nominatim..."
+        )
         semaphore = asyncio.Semaphore(10)
         new_caches_to_save: list[ReverseGeocodingCache] = []
 
-        async def fetch_reverse(c: CoordinateRequest) -> tuple[CoordinateRequest, dict | None]:
+        async def fetch_reverse(
+            c: CoordinateRequest,
+        ) -> tuple[CoordinateRequest, dict | None]:
             async with semaphore:
                 try:
                     res = await client.get(
                         f"{settings.nominatim_url}/reverse",
-                        params={"lat": c.latitude, "lon": c.longitude, "format": "json"},
+                        params={
+                            "lat": c.latitude,
+                            "lon": c.longitude,
+                            "format": "json",
+                        },
                     )
                     res.raise_for_status()
                     data = res.json()
                     if "error" not in data:
                         return c, data
                 except Exception as e:
-                    logger.error(f"Erro ao buscar reverse para ({c.latitude}, {c.longitude}): {e}")
+                    logger.error(
+                        f"Erro ao buscar reverse para ({c.latitude}, {c.longitude}): {e}"
+                    )
                 return c, None
 
         tasks = [fetch_reverse(c) for c in coords_to_fetch]
         fetched_results = await asyncio.gather(*tasks)
 
         for coord_req, result_data in fetched_results:
-            key = ReverseGeocodingCache.make_key(coord_req.latitude, coord_req.longitude)
+            key = ReverseGeocodingCache.make_key(
+                coord_req.latitude, coord_req.longitude
+            )
             if result_data:
                 final_results_map[key] = ReverseGeocodingResult(
                     query=coord_req,
@@ -410,7 +429,9 @@ async def batch_reverse_geocode(
         if new_caches_to_save:
             try:
                 await rev_repo.add_many(new_caches_to_save, auto_commit=True)
-                logger.info(f"{len(new_caches_to_save)} novas coordenadas salvas no cache reverse em lote.")
+                logger.info(
+                    f"{len(new_caches_to_save)} novas coordenadas salvas no cache reverse em lote."
+                )
             except Exception as e:
                 logger.error(f"Erro ao salvar lote de reverse no cache: {e}")
 

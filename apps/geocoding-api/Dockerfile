@@ -9,27 +9,39 @@ ENV PYTHONUNBUFFERED=1 \
 # Install uv from official binary image
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-WORKDIR /app
-
 # Create non-root system user for security
 RUN groupadd -g 1000 appgroup && \
     useradd -u 1000 -g appgroup -s /bin/bash -m appuser
 
-# Copy dependency definition first for optimal Docker layer caching
-COPY pyproject.toml ./
+# Espelha a estrutura do monorepo no contêiner
+WORKDIR /monorepo
 
-# Install dependencies using BuildKit cache mount for uv
+COPY pyproject.toml uv.lock* ./
+
+# 1. Copia o pacote local primeiro (para aproveitar o cache caso ele não mude)
+COPY packages/logging-config/ ./packages/logging-config/
+
+# 2. Copia APENAS o arquivo de dependências da aplicação
+# Como o contexto de build é a raiz (../../), especificamos o caminho completo
+COPY apps/geocoding-api/pyproject.toml ./apps/geocoding-api/
+
+# Muda para a pasta da aplicação para rodar a instalação
+WORKDIR /monorepo/apps/geocoding-api
+
+# 3. Instala as dependências.
+# O uv lerá o caminho ../../packages/logging-config e o encontrará perfeitamente
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system .
 
-# Copy application source code
-COPY src ./src
+# 4. Copia o restante do código da aplicação
+COPY apps/geocoding-api/ ./
 
-# Set ownership to non-root user
-RUN chown -R appuser:appgroup /app
+# Ajusta as permissões para o usuário não-root (em todo o monorepo)
+RUN chown -R appuser:appgroup /monorepo
 
 USER appuser
 
 EXPOSE 8000
 
+# O WORKDIR já é /monorepo/apps/geocoding-api, então o uvicorn achará o src.main
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

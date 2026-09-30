@@ -1,17 +1,16 @@
 import httpx
-
-from logging_settings import setup_logger
-
 from fastapi import APIRouter, Depends, Response, status
 from fastapi.responses import JSONResponse
+from logging_config import config_logger
+from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import settings
-from ..dependencies import get_db, get_http_client
-from ..schemas import HealthResponse
+from src.config import settings
+from src.dependencies import get_db, get_http_client
+from src.schemas import HealthResponse
 
-logger = setup_logger(__name__)
+config_logger()
 
 router = APIRouter(tags=["Health"])
 
@@ -60,8 +59,18 @@ async def health_check(
     except Exception as e:
         logger.error(f"Health check Nominatim error: {e}")
 
-    overall_status = "online" if (db_healthy and nominatim_healthy) else "degraded" if (db_healthy or nominatim_healthy) else "offline"
-    msg = "Todos os serviços operacionais." if overall_status == "online" else "Uma ou mais dependências estão indisponíveis."
+    overall_status = (
+        "online"
+        if (db_healthy and nominatim_healthy)
+        else "degraded"
+        if (db_healthy or nominatim_healthy)
+        else "offline"
+    )
+    msg = (
+        "Todos os serviços operacionais."
+        if overall_status == "online"
+        else "Uma ou mais dependências estão indisponíveis."
+    )
 
     health_data = HealthResponse(
         status=overall_status,
