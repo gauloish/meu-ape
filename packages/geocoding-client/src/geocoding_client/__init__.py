@@ -4,9 +4,9 @@ Fornece cliente assíncrono e síncrono com suporte nativo a requisições indiv
 autenticação M2M via cabeçalho `X-API-Key`, e resiliência via Exponential Backoff.
 """
 
-from .client import GeocodingClient
-from .config import ClientSettings, settings
-from .exceptions import (
+from src.client import GeocodingClient
+from src.config import ClientSettings, settings
+from src.exceptions import (
     AddressNotFound,
     AuthenticationError,
     GeoAPIError,
@@ -14,7 +14,7 @@ from .exceptions import (
     RateLimitExceeded,
     ServerError,
 )
-from .schemas import (
+from src.schemas import (
     BatchGeocodingRequest,
     BatchGeocodingResponse,
     BatchReverseGeocodingRequest,
@@ -28,27 +28,23 @@ from .schemas import (
 )
 
 __all__ = [
-    # Client
-    "GeocodingClient",
-    # Config
-    "ClientSettings",
-    "settings",
-    # Exceptions
-    "GeoAPIError",
-    "AuthenticationError",
     "AddressNotFound",
-    "RateLimitExceeded",
-    "ServerError",
-    "HTTPConnectionError",
-    # Schemas
-    "GeocodingData",
-    "GeocodingResponse",
+    "AuthenticationError",
     "BatchGeocodingRequest",
     "BatchGeocodingResponse",
-    "CoordinateRequest",
-    "ReverseGeocodingResponse",
     "BatchReverseGeocodingRequest",
-    "ReverseGeocodingResult",
     "BatchReverseGeocodingResponse",
+    "ClientSettings",
+    "CoordinateRequest",
+    "GeoAPIError",
+    "GeocodingClient",
+    "GeocodingData",
+    "GeocodingResponse",
+    "HTTPConnectionError",
     "HealthResponse",
+    "RateLimitExceeded",
+    "ReverseGeocodingResponse",
+    "ReverseGeocodingResult",
+    "ServerError",
+    "settings",
 ]
