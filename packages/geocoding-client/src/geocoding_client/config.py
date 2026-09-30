@@ -20,7 +20,7 @@ class ClientSettings(BaseSettings):
     """
 
     geo_api_url: str = Field(
-        default="http://localhost:8000",
+        default="http://localhost:8004",
         description="URL base da API interna de Geocodificação (ex: GEO_API_URL)",
     )
     

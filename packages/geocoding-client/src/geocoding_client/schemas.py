@@ -5,6 +5,7 @@ das requisições e respostas trocadas com a API interna de Geocodificação.
 """
 
 from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -38,8 +39,12 @@ class GeocodingResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    source: str = Field(..., description="Origem do dado: 'cache', 'nominatim' ou 'error'")
-    data: GeocodingData | None = Field(default=None, description="Dados detalhados da localização")
+    source: str = Field(
+        ..., description="Origem do dado: 'cache', 'nominatim' ou 'error'"
+    )
+    data: GeocodingData | None = Field(
+        default=None, description="Dados detalhados da localização"
+    )
 
 
 class BatchGeocodingRequest(BaseModel):
@@ -51,7 +56,9 @@ class BatchGeocodingRequest(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    addresses: list[str] = Field(..., description="Lista de endereços a serem geocodificados")
+    addresses: list[str] = Field(
+        ..., description="Lista de endereços a serem geocodificados"
+    )
 
 
 class BatchGeocodingResponse(BaseModel):
@@ -63,7 +70,9 @@ class BatchGeocodingResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    results: list[GeocodingResponse] = Field(..., description="Resultados mantendo a ordem original da busca")
+    results: list[GeocodingResponse] = Field(
+        ..., description="Resultados mantendo a ordem original da busca"
+    )
 
 
 class CoordinateRequest(BaseModel):
@@ -76,8 +85,12 @@ class CoordinateRequest(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    latitude: float = Field(..., description="Latitude da coordenada (-90 a 90)", ge=-90.0, le=90.0)
-    longitude: float = Field(..., description="Longitude da coordenada (-180 a 180)", ge=-180.0, le=180.0)
+    latitude: float = Field(
+        ..., description="Latitude da coordenada (-90 a 90)", ge=-90.0, le=90.0
+    )
+    longitude: float = Field(
+        ..., description="Longitude da coordenada (-180 a 180)", ge=-180.0, le=180.0
+    )
 
 
 class ReverseGeocodingResponse(BaseModel):
@@ -90,8 +103,12 @@ class ReverseGeocodingResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    source: str = Field(..., description="Origem do dado: 'cache', 'nominatim' ou 'error'")
-    data: dict[str, Any] | None = Field(default=None, description="Dados brutos de endereço retornados pelo Nominatim")
+    source: str = Field(
+        ..., description="Origem do dado: 'cache', 'nominatim' ou 'error'"
+    )
+    data: dict[str, Any] | None = Field(
+        default=None, description="Dados brutos de endereço retornados pelo Nominatim"
+    )
 
 
 class BatchReverseGeocodingRequest(BaseModel):
@@ -103,7 +120,9 @@ class BatchReverseGeocodingRequest(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    coordinates: list[CoordinateRequest] = Field(..., description="Lista de coordenadas para busca em lote")
+    coordinates: list[CoordinateRequest] = Field(
+        ..., description="Lista de coordenadas para busca em lote"
+    )
 
 
 class ReverseGeocodingResult(BaseModel):
@@ -119,7 +138,9 @@ class ReverseGeocodingResult(BaseModel):
 
     query: CoordinateRequest = Field(..., description="Coordenada original da consulta")
     source: str = Field(..., description="Origem ('cache', 'nominatim' ou 'error')")
-    data: dict[str, Any] | None = Field(default=None, description="Dados brutos de endereço")
+    data: dict[str, Any] | None = Field(
+        default=None, description="Dados brutos de endereço"
+    )
 
 
 class BatchReverseGeocodingResponse(BaseModel):
@@ -131,7 +152,9 @@ class BatchReverseGeocodingResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    results: list[ReverseGeocodingResult] = Field(..., description="Resultados ordenados da consulta em lote")
+    results: list[ReverseGeocodingResult] = Field(
+        ..., description="Resultados ordenados da consulta em lote"
+    )
 
 
 class HealthResponse(BaseModel):
