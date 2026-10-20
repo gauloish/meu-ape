@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 from fastapi.testclient import TestClient
 
 from src.config import settings
@@ -29,7 +30,14 @@ def mock_http_client_factory():
     mock_resp.status_code = 200
     mock_resp.raise_for_status = MagicMock()
     mock_resp.json = MagicMock(
-        return_value=[{"lat": "-16.68", "lon": "-49.25", "place_id": "123", "display_name": "Goiânia, GO"}]
+        return_value=[
+            {
+                "lat": "-16.68",
+                "lon": "-49.25",
+                "place_id": "123",
+                "display_name": "Goiânia, GO",
+            }
+        ]
     )
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_resp)
@@ -56,7 +64,9 @@ def test_protected_endpoint_without_api_key(client: TestClient):
 def test_protected_endpoint_with_invalid_api_key(client: TestClient):
     """Valida que rotas protegidas com X-API-Key incorreta retornam HTTP 401."""
     headers = {"X-API-Key": "chave_totalmente_invalida"}
-    response = client.get("/geocoding/search?address=Avenida+Anhanguera", headers=headers)
+    response = client.get(
+        "/geocoding/search?address=Avenida+Anhanguera", headers=headers
+    )
     assert response.status_code == 401
     assert response.json()["detail"] == "Chave de API (X-API-Key) inválida ou ausente."
 
@@ -67,7 +77,9 @@ def test_protected_endpoint_with_valid_app_api_key(client: TestClient):
     app.dependency_overrides[get_db] = mock_get_db
     try:
         headers = {"X-API-Key": VALID_APP_API_KEY}
-        response = client.get("/geocoding/search?address=Avenida+Anhanguera", headers=headers)
+        response = client.get(
+            "/geocoding/search?address=Avenida+Anhanguera", headers=headers
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["source"] == "nominatim"
@@ -82,7 +94,9 @@ def test_protected_endpoint_with_valid_ml_api_key(client: TestClient):
     app.dependency_overrides[get_db] = mock_get_db
     try:
         headers = {"X-API-Key": VALID_ML_API_KEY}
-        response = client.get("/geocoding/search?address=Avenida+Anhanguera", headers=headers)
+        response = client.get(
+            "/geocoding/search?address=Avenida+Anhanguera", headers=headers
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["source"] == "nominatim"
@@ -113,12 +127,22 @@ def test_rate_limiting_tier_differences(client: TestClient):
     try:
         # Chave APP: limite batch é 10/minuto -> após 10 requisições dispara 429
         headers_app = {"X-API-Key": VALID_APP_API_KEY}
-        app_responses = [client.post("/geocoding/search/batch", json=payload, headers=headers_app).status_code for _ in range(12)]
+        app_responses = [
+            client.post(
+                "/geocoding/search/batch", json=payload, headers=headers_app
+            ).status_code
+            for _ in range(12)
+        ]
         assert 429 in app_responses
 
         # Chave ML: limite batch é 120/minuto -> 12 requisições passam todas com 200
         headers_ml = {"X-API-Key": VALID_ML_API_KEY}
-        ml_responses = [client.post("/geocoding/search/batch", json=payload, headers=headers_ml).status_code for _ in range(12)]
+        ml_responses = [
+            client.post(
+                "/geocoding/search/batch", json=payload, headers=headers_ml
+            ).status_code
+            for _ in range(12)
+        ]
         assert all(code == 200 for code in ml_responses)
     finally:
         app.dependency_overrides.clear()
