@@ -159,7 +159,7 @@ class DataCleaner:
         Returns:
             pd.DataFrame: DataFrame com dtypes convertidos.
         """
-        return df.convert_dtypes()
+        return df.reset_index(drop=True).convert_dtypes()
 
     def __call__(self, df: pd.DataFrame) -> pd.DataFrame:
         """Executa a pipeline completa de limpeza de dados.

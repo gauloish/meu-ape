@@ -140,7 +140,7 @@ class GeocodingEnricher:
         Returns:
             pd.DataFrame: DataFrame com os tipos convertidos.
         """
-        return df.convert_dtypes()
+        return df.reset_index(drop=True).convert_dtypes()
 
     def __call__(self, df: pd.DataFrame) -> pd.DataFrame:
         """Executa o pipeline completo de enriquecimento geográfico.
