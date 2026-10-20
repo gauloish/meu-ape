@@ -9,6 +9,8 @@ dependencies = [
     "geocoding-client",
     "huggingface-hub>=1.29.0",
     "joblib>=1.5.3",
+    "logging-config",
+    "loguru>=0.7.3",
     "ml-core",
     "numpy>=2.5.1",
     "optuna>=4.9.0",
@@ -24,4 +26,5 @@ pythonpath = ["src"]
 [tool.uv.sources]
 geocoding-client = { workspace = true }
 ml-core = { workspace = true }
+logging-config = { workspace = true }
 
