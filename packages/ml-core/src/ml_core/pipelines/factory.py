@@ -10,9 +10,9 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, OrdinalEncoder
 
-from ml_core.constants import BINS_INFO, PAIRS, POINTS
 from ml_core.estimators import Regressor
-from ml_core.feature_groups import FeatureGroups
+from ml_core.pipelines.constants import BINS_INFO, PAIRS, POINTS
+from ml_core.pipelines.feature_groups import FeatureGroups
 from ml_core.transformers import (
     BinsDiscretizer,
     ClusterTransformer,

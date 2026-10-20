@@ -11,7 +11,6 @@ from ml_core.estimators import (
 from ml_core.pipelines import (
     FeatureGroups,
     create_training_pipeline,
-    get_default_feature_groups,
     get_feature_groups,
     get_preprocessor,
     get_transformers,
@@ -40,7 +39,6 @@ __all__ = [
     "calculate_regression_metrics",
     "create_training_pipeline",
     "estimators",
-    "get_default_feature_groups",
     "get_feature_groups",
     "get_preprocessor",
     "get_transformers",

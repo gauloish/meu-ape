@@ -1,6 +1,6 @@
 """Módulo de estimadores customizados do pacote `ml-core`."""
 
-from ml_core.estimators.estimator import Regressor
+from ml_core.estimators.estimators import Regressor
 from ml_core.estimators.metrics import (
     RegressionMetrics,
     RegressionMetricsReport,
