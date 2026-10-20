@@ -1,5 +1,7 @@
 services:
   ml_worker:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     build:
       context: ../..
       dockerfile: apps/ml-worker/Dockerfile
@@ -9,6 +11,10 @@ services:
       - .env
     environment:
       - GEO_API_KEY=${GEO_API_KEY:-geo_api_key_change_me}
+      - GEO_API_URL=${GEO_API_URL:-geo_api_url_change_me}
+      - TIMEOUT=${TIMEOUT:-15.0}
+      - MAX_RETRIES=${MAX_RETRIES:-5}
+      - BACKOFF_FACTOR=${BACKOFF_FACTOR:-2.0}
       - HF_TOKEN=${HF_TOKEN:-hf_token_change_me}
       - N_TRIALS=${N_TRIALS:-20}
       - K_FOLDS=${K_FOLDS:-5}

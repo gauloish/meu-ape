@@ -43,5 +43,10 @@ RUN chown -R appuser:appgroup /monorepo
 
 USER appuser
 
-# O WORKDIR já é /monorepo/apps/geocoding-api, então o uvicorn achará o src.main
-CMD ["uv", "run", "python", "main.py", "--mode", "train", "--dataset-source", "${DATASET_SOURCE:-user/dataset_repo_name}", "--n-trials", "${N_TRIALS:-20}", "--k-folds", "${K_FOLDS:-5}", "--push-to-hub", "--repo-id", "${REPO_ID:-user/model_repo_name}"]
+CMD uv run python main.py \
+    --mode train \
+    --dataset-source $DATASET_SOURCE \
+    --n-trials $N_TRIALS \
+    --k-folds $K_FOLDS \
+    --push-to-hub \
+    --repo-id $REPO_ID
