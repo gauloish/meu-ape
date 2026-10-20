@@ -1,5 +1,8 @@
 version: '3'
 
+dotenv:
+  - ".env"
+
 tasks:
   default:
     desc: "Lista todos os comandos disponíveis"
@@ -56,3 +59,8 @@ tasks:
     desc: "Fluxo completo: Sobe a infraestrutura Docker"
     cmds:
       - task: build
+  
+  train:
+    desc: "Executa o treinamento do modelo com otimização de hiperparâmetros e Nested CV"
+    cmds:
+      - uv run python main.py --mode train --dataset-source ${DATASET_SOURCE:-user/dataset_repo_name} --n-trials ${N_TRIALS:-20} --k-folds ${K_FOLDS:-5} --push-to-hub --repo-id ${REPO_ID:-user/model_repo_name}
