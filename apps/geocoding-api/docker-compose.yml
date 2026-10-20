@@ -54,7 +54,7 @@ services:
     container_name: geocoding_fastapi
     restart: unless-stopped
     ports:
-      - "${API_PORT:-8004}:8004"
+      - "${API_PORT:-8002}:8002"
     depends_on:
       cache_db:
         condition: service_healthy
