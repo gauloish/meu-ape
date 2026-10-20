@@ -1,0 +1,16 @@
+services:
+  ml_worker:
+    build:
+      context: ../..
+      dockerfile: apps/ml-worker/Dockerfile
+    container_name: ml_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - GEO_API_KEY=${GEO_API_KEY:-geo_api_key_change_me}
+      - HF_TOKEN=${HF_TOKEN:-hf_token_change_me}
+      - N_TRIALS=${N_TRIALS:-20}
+      - K_FOLDS=${K_FOLDS:-5}
+      - DATASET_SOURCE=${DATASET_SOURCE:-user/dataset_repo_name}
+      - REPO_ID=${REPO_ID:-user/model_repo_name}
