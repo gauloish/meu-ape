@@ -1,7 +1,6 @@
 """Ponto de entrada principal do ml-worker para orquestração de treinamento e avaliação."""
 
 import argparse
-import logging
 import sys
 from pathlib import Path
 
@@ -10,16 +9,14 @@ src_dir = str(Path(__file__).parent.resolve())
 if src_dir not in sys.path:
     sys.path.insert(0, src_dir)
 
-from evaluation.evaluate import run_nested_cv
+from evaluation.evaluate import evaluate_pipeline
+from logging_config import config_logger
+from loguru import logger
 from ml_core.pipelines import get_feature_groups
 from optimization.optimize import optimize_hyperparameters
-from training.train import load_raw_dataset, prepare_data, train_model
+from training.train import load_data, prepare_data, train_model
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
-)
-logger = logging.getLogger("ml_worker")
+config_logger()
 
 
 def main() -> None:
@@ -42,7 +39,7 @@ def main() -> None:
     parser.add_argument(
         "--dataset-source",
         type=str,
-        default="meu-ape/imoveis-goiania",
+        default="user/dataset_repo_name",
         help="Nome do dataset no HF Hub ou caminho para arquivo Parquet/CSV local.",
     )
     parser.add_argument(
@@ -83,10 +80,10 @@ def main() -> None:
 
     elif args.mode == "evaluate":
         logger.info("Modo AVALIAÇÃO (Nested CV) selecionado.")
-        df_raw = load_raw_dataset(args.dataset_source)
+        df_raw = load_data(args.dataset_source)
         X, y = prepare_data(df_raw)
         feature_groups = get_feature_groups(X)
-        results = run_nested_cv(
+        results = evaluate_pipeline(
             X=X,
             y=y,
             k_outer=args.k_folds,
@@ -98,7 +95,7 @@ def main() -> None:
 
     elif args.mode == "optimize":
         logger.info("Modo OTIMIZAÇÃO selecionado.")
-        df_raw = load_raw_dataset(args.dataset_source)
+        df_raw = load_data(args.dataset_source)
         X, y = prepare_data(df_raw)
         feature_groups = get_feature_groups(X)
         best_params, best_score = optimize_hyperparameters(

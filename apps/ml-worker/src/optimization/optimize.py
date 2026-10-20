@@ -27,18 +27,18 @@ def search_space(
     """
 
     return {
-        "model__n_estimators": trial.suggest_int("n_estimators", 100, 1000, step=50),
+        "model__n_estimators": trial.suggest_int("model__n_estimators", 100, 1000, step=50),
         "model__learning_rate": trial.suggest_float(
-            "learning_rate", 1e-3, 1e-1, log=True
+            "model__learning_rate", 1e-3, 1e-1, log=True
         ),
-        "model__max_depth": trial.suggest_int("max_depth", 2, 20),
-        "model__min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
-        "model__subsample": trial.suggest_float("subsample", 0.5, 1.0, step=0.1),
+        "model__max_depth": trial.suggest_int("model__max_depth", 2, 20),
+        "model__min_child_weight": trial.suggest_int("model__min_child_weight", 1, 10),
+        "model__subsample": trial.suggest_float("model__subsample", 0.5, 1.0, step=0.1),
         "model__colsample_bytree": trial.suggest_float(
-            "colsample_bytree", 0.5, 1.0, step=0.1
+            "model__colsample_bytree", 0.5, 1.0, step=0.1
         ),
-        "model__reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 1e2, log=True),
-        "model__reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 1e2, log=True),
+        "model__reg_alpha": trial.suggest_float("model__reg_alpha", 1e-8, 1e2, log=True),
+        "model__reg_lambda": trial.suggest_float("model__reg_lambda", 1e-3, 1e2, log=True),
         "model__objective": "reg:absoluteerror",
         "model__log_c": 1.0,
         "model__random_state": random_state,

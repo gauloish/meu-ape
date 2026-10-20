@@ -99,10 +99,10 @@ def evaluate_pipeline(
     for fold_idx, (train_idx, test_idx) in enumerate(outer_cv.split(X), start=1):
         logger.info(f"--- Processando Fold Externo {fold_idx}/{k_outer} ---")
 
-        X_train = X[train_idx]
-        y_train = y[train_idx]
-        X_test = X[test_idx]
-        y_test = y[test_idx]
+        X_train = X.iloc[train_idx]
+        y_train = y.iloc[train_idx]
+        X_test = X.iloc[test_idx]
+        y_test = y.iloc[test_idx]
 
         best_params, best_score = optimize_hyperparameters(
             X=X_train,
