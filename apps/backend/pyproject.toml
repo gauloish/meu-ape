@@ -28,5 +28,10 @@ src = ["."]
 extraPaths = ["."]
 
 [tool.uv.sources]
-ml-core = { workspace = true }
 geocoding-client = { workspace = true }
+ml-core = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

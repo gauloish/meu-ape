@@ -28,3 +28,8 @@ src = ["."]
 [tool.uv.sources]
 geocoding-client = { workspace = true }
 logging-config = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

@@ -333,6 +333,11 @@ dependencies = [
     { name = "uvicorn" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.141.1" },
@@ -347,6 +352,9 @@ requires-dist = [
     { name = "slowapi", specifier = ">=0.1.10" },
     { name = "uvicorn", specifier = ">=0.52.4" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.1.1" }]
 
 [[package]]
 name = "backports-zstd"
@@ -1451,6 +1459,11 @@ dependencies = [
     { name = "uvicorn" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.31.0" },
@@ -1466,6 +1479,9 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.52.4" },
 ]
 
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.1.1" }]
+
 [[package]]
 name = "geocoding-client"
 version = "0.1.0"
@@ -1478,6 +1494,11 @@ dependencies = [
     { name = "tenacity" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
@@ -1486,6 +1507,9 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "tenacity", specifier = ">=9.1.4" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.1.1" }]
 
 [[package]]
 name = "geographiclib"
@@ -1742,6 +1766,16 @@ name = "ingestion"
 version = "0.1.0"
 source = { virtual = "apps/ingestion" }
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.1.1" }]
+
 [[package]]
 name = "iniconfig"
 version = "2.3.1"
@@ -1944,6 +1978,16 @@ wheels = [
 name = "logging-config"
 version = "0.1.0"
 source = { editable = "packages/logging-config" }
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.1.1" }]
 
 [[package]]
 name = "loguru"
@@ -2325,6 +2369,11 @@ dependencies = [
     { name = "xgboost" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "feature-engine", specifier = ">=1.9.4" },
@@ -2336,6 +2385,9 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.9.0" },
     { name = "xgboost", specifier = ">=3.4.1" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.1.1" }]
 
 [[package]]
 name = "ml-worker"
@@ -2357,6 +2409,11 @@ dependencies = [
     { name = "scikit-learn" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "datasets", specifier = ">=5.0.1" },
@@ -2373,6 +2430,9 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "scikit-learn", specifier = ">=1.9.0" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.1.1" }]
 
 [[package]]
 name = "multidict"

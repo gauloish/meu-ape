@@ -24,3 +24,8 @@ src = ["."]
 
 [tool.uv.sources]
 logging-config = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
