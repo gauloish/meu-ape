@@ -17,3 +17,6 @@ data/cache/*.db
 
 # Artifacts
 artifacts/
+
+# Pytest caches
+.pytest_cache
