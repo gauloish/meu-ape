@@ -5,3 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
+
+[tool.ruff]
+src = ["."]
+
+[tool.pyright]
+extraPaths = ["."]
