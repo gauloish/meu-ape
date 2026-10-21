@@ -1,8 +1,8 @@
 """Schemas de validação e serialização de dados (Pydantic) para a API de inferência."""
 
-from pydantic import BaseModel, Field
 from typing import Literal
 
+from pydantic import BaseModel, Field
 
 MIN_LATITUDE: float = -16.85
 MAX_LATITUDE: float = -16.55

@@ -1,7 +1,8 @@
 """Roteador para verificação de saúde e prontidão da aplicação (Health Check)."""
 
 from fastapi import APIRouter, Request
-from ..schemas import HealthResponse
+
+from src.schemas import HealthResponse
 
 router = APIRouter(tags=["Health"])
 

@@ -1,6 +1,7 @@
 """Injeção de dependências compartilhadas do FastAPI."""
 
 from typing import Any
+
 from fastapi import HTTPException, Request, status
 
 

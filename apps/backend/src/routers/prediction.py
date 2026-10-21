@@ -1,38 +1,34 @@
 """Roteador para inferência de preços de imóveis via modelo de Machine Learning."""
 
 from typing import Any
+
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, status
-from logging_settings import setup_logger
+from logging_config import config_logger
+from loguru import logger
 
-from ..dependencies import get_model
-from ..schemas import InferenceRequest, PredictionResponse
+from src.dependencies import get_model
+from src.schemas import InferenceRequest, PredictionResponse
 
-logger = setup_logger(__name__)
+config_logger()
 
 router = APIRouter(tags=["Predição"])
 
 
 def request_to_dataframe(payload: InferenceRequest) -> pd.DataFrame:
-    """Converte o payload Pydantic validado em um pandas DataFrame para o modelo.
+    """Transforma o schema pydantic da requisição de inferência em um objeto
+    pandas DataFrame.
 
-    =============================================================================
-    TODO: Injetar a lógica de construção do DataFrame a partir do request.
-    =============================================================================
-    Instruções:
-    1. O Scikit-Learn e o pipeline do XGBoost exigem que os dados de entrada
-       estejam em formato tabular (pd.DataFrame) com as mesmas colunas e tipos
-       utilizados durante a etapa de treinamento.
-    2. Você pode ajustar este método para mapear nomes de colunas, calcular
-       features derivadas ou criar dummies caso não estejam no pipeline.
-    
-    Exemplo básico:
-        data_dict = payload.model_dump()
-        return pd.DataFrame([data_dict])
-    =============================================================================
+    Args:
+        payload (InferenceRequest): Schema pydantic da requisição.
+
+    Returns:
+        pd.DataFrame: Objeto DataFrame.
     """
     data_dict = payload.model_dump()
-    return pd.DataFrame([data_dict])
+    data_frame = pd.DataFrame([data_dict])
+
+    return data_frame
 
 
 @router.post(

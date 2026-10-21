@@ -2,17 +2,18 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from pathlib import Path
+
 import joblib
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from huggingface_hub import hf_hub_download
-from logging_settings import setup_logger
+from logging_config import config_logger
+from loguru import logger
 
-from .config import settings
-from .routers import health_router, prediction_router
+from src.config import settings
+from src.routers import health_router, prediction_router
 
-logger = setup_logger(__name__)
+config_logger()
 
 
 def load_model_from_hub() -> object:

@@ -1,0 +1,18 @@
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: apps/backend/Dockerfile
+    container_name: backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-hf_token_change_me}
+      - REPO_ID=${REPO_ID:-user/model_repo_name}
+      - MODEL_FILENAME=${MODEL_FILENAME:-model.joblib}
+      - HOST=${HOST:-0.0.0.0}
+      - PORT=${PORT:-8000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}

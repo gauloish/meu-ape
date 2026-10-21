@@ -1,0 +1,63 @@
+version: '3'
+
+tasks:
+  default:
+    desc: "Lista todos os comandos disponíveis"
+    cmds:
+      - task --list
+
+  up:
+    desc: "Sobe toda a infraestrutura Docker do backend em background"
+    cmds:
+      - docker compose up -d
+
+  build:
+    desc: "Reconstrói a imagem Docker da API e sobe os contêineres"
+    cmds:
+      - docker compose up --build -d
+
+  down:
+    desc: "Derruba e remove os contêineres e redes do Docker"
+    cmds:
+      - docker compose down
+
+  clean:
+    desc: "Derruba a stack, apaga os volumes de dados e imagens locais"
+    cmds:
+      - docker compose down -v --rmi local --remove-orphans
+
+  reset:
+    desc: "Limpa totalmente os dados/imagens (clean) e recria o ambiente do zero"
+    cmds:
+      - task: clean
+      - task: run
+
+  logs:
+    desc: "Mostra os logs da API do backend em tempo real"
+    cmds:
+      - docker compose logs -f backend
+
+  logs-all:
+    desc: "Mostra os logs de todos os contêineres em tempo real"
+    cmds:
+      - docker compose logs -f
+
+  ps:
+    desc: "Exibe o status dos contêineres Docker"
+    cmds:
+      - docker compose ps
+
+  shell:
+    desc: "Abre um terminal interativo bash no contêiner da API"
+    cmds:
+      - docker compose exec backend bash
+
+  lint:
+    desc: "Executa verificação de código com o Ruff via uv"
+    cmds:
+      - uv run ruff check .
+
+  run:
+    desc: "Fluxo completo: Sobe a infraestrutura Docker"
+    cmds:
+      - task: build
