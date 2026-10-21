@@ -23,6 +23,12 @@ dependencies = [
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 
+[tool.ruff]
+src = ["."]
+
+[tool.pyright]
+extraPaths = ["."]
+
 [tool.uv.sources]
 geocoding-client = { workspace = true }
 ml-core = { workspace = true }

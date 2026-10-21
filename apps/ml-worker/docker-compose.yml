@@ -6,7 +6,6 @@ services:
       context: ../..
       dockerfile: apps/ml-worker/Dockerfile
     container_name: ml_worker
-    restart: unless-stopped
     env_file:
       - .env
     environment:
