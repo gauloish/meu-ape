@@ -1,6 +1,6 @@
 from sqlalchemy.orm import sessionmaker
 
-from .engine import engine
+from src.database.engine import engine
 
 
 Session = sessionmaker(
