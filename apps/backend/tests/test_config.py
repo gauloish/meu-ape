@@ -12,7 +12,7 @@ def test_settings_default_values():
     settings = Settings(_env_file=None)
 
     assert settings.host == "0.0.0.0"
-    assert settings.port == 8001
+    assert settings.port == 8000
     assert settings.model_filename == "model.joblib"
     assert settings.log_level == "INFO"
     assert settings.cors_origins == "*"

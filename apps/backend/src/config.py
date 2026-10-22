@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # Server Configuration
     host: str = Field(default="0.0.0.0", description="Host de binding do servidor.")
-    port: int = Field(default=8001, description="Porta HTTP do servidor.")
+    port: int = Field(default=8000, description="Porta HTTP do servidor.")
     log_level: str = Field(
         default="INFO", description="Nível de log (DEBUG, INFO, WARNING, ERROR)."
     )
