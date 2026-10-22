@@ -1,78 +1,110 @@
-# Meu Apê — Real Estate Analytics & Valuation Pipeline
+# Meu Apê — Plataforma de Precificação de Imóveis em Goiânia
 
-A data processing and machine learning pipeline for scraping, deduplicating, analyzing, and predicting real estate property prices in Goiânia, Brazil.
+Plataforma orientada a Machine Learning projetada para coleta automatizada, processamento geoespacial, modelagem preditiva e disponibilização de estimativas de preços de venda para o mercado imobiliário residencial de Goiânia (GO).
 
-## Architecture & Project Structure
+---
+
+## Visão Geral do Projeto
+
+O objetivo do projeto é acompanhar o mercado imobiliário local de forma contínua e fornecer avaliações precisas de imóveis com base em suas características estruturais, amenidades e localização geográfica.
+
+O ciclo de vida do dado percorre quatro etapas principais:
+
+1. **Ingestão Contínua**: Raspagem programada de anúncios de venda na web e persistência em banco de dados relacional.
+2. **Enriquecimento Geoespacial**: Normalização de endereços e resolução de coordenadas com cache local para evitar custos e dependências de APIs proprietárias.
+3. **Treinamento e Governança de ML**: Otimização bayesiana de hiperparâmetros, avaliação não-enviesada por validação cruzada aninhada (*Nested CV*) e publicação de artefatos versionados no Hugging Face Hub.
+4. **Entrega e Inferência**: Serviço web de baixa latência consumindo o modelo de Machine Learning em memória e interface gráfica para os usuários finais.
+
+---
+
+## Arquitetura do Monorepo
+
+O projeto é estruturado como um monorepo Python gerenciado pelo gerenciador de pacotes **`uv`** (Workspaces) e orquestrado via **Docker** e **Taskfile**. O código é segregado entre aplicações executáveis (`apps/`) e bibliotecas compartilhadas reutilizáveis (`packages/`):
 
 ```
 meu-ape/
-├── src/
-│   ├── scraping/
-│   │   ├── config.py           # Pipeline configuration, categories, and price ranges
-│   │   ├── zap_parser.py       # JSON-LD property item parser
-│   │   ├── http_client.py      # Synchronous and asynchronous HTTP clients (curl_cffi)
-│   │   ├── zap_scraper_sync.py # Synchronous multi-threaded partition scraper
-│   │   └── zap_scraper_async.py# Asynchronous partition scraper
-│   ├── data/
-│   │   ├── checkpoint.py       # Resilient CSV buffer and persistence manager
-│   │   ├── deduplicator.py     # Physical asset deduplication engine
-│   │   └── validator.py        # Coverage validator comparing local dataset vs portal totals
-│   └── cli/
-│       └── main.py             # Command-line interface subcommands
-├── notebooks/                  # EDA, feature engineering, and model training
-├── data/
-│   ├── raw/                    # Extracted raw CSV datasets
-│   └── processed/              # Deduplicated and cleaned datasets
-├── pyproject.toml              # Dependency and package configuration
-└── main.py                     # CLI wrapper script
+├── apps/
+│   ├── ingestion/              # Ingestão periódica via web scraping
+│   ├── geocoding-api/          # Microsserviço de geocodificação e cache em PostgreSQL
+│   ├── ml-worker/              # Treinamento, otimização e publicação no HF Hub
+│   ├── backend/                # API REST de inferência em produção (FastAPI)
+│   └── frontend/               # Interface web do usuário (React / TypeScript) [em desenvolvimento]
+├── packages/
+│   ├── geocoding-client/       # SDK cliente HTTP para consumo da geocoding-api
+│   ├── ml-core/                # Pipeline scikit-learn, transformadores e métricas de ML
+│   └── logging-config/         # Padronização estruturada de logs com Loguru
+├── notebooks/                  # Prototipação, análise exploratória (EDA) e experimentos
+├── pyproject.toml              # Definição do workspace uv e dependências raiz
+└── README.md                   # Documentação geral do ecossistema
 ```
 
-## Installation
+---
 
-Ensure Python 3.12+ and `uv` package manager are installed.
+## Componentes do Sistema
+
+Cada aplicação e pacote do monorepo possui responsabilidade única e conta com seu próprio arquivo `README.md` detalhando arquitetura interna, variáveis de ambiente, comandos de execução e suíte de testes unitários:
+
+### Aplicações (`apps/`)
+
+| Aplicação | Responsabilidade | Documentação |
+| :--- | :--- | :--- |
+| **`backend`** | API REST desenvolvida em FastAPI que carrega o modelo preditivo XGBoost em memória a partir do Hugging Face Hub e fornece inferência em tempo real via endpoint `POST /predict`. | `apps/backend/README.md` |
+| **`geocoding-api`** | Microsserviço FastAPI integrado a uma instância local do Nominatim/OpenStreetMap e cache em PostgreSQL, responsável pela resolução bidirecional entre endereços e coordenadas. | `apps/geocoding-api/README.md` |
+| **`ml-worker`** | Worker para execução offline do pipeline de ML. Executa limpeza de dados, Nested Cross-Validation, sintonia com Optuna e upload de artefatos serializados no Hugging Face Hub. | `apps/ml-worker/README.md` |
+| **`ingestion`** | Rotina semanal de coleta automatizada de anúncios imobiliários executada via GitHub Actions e armazenada em banco PostgreSQL remoto. | `apps/ingestion/` |
+| **`frontend`** | Aplicação web interativa para simulação e visualização de estimativas de imóveis construída com React, TypeScript, HTML e CSS. *(Em desenvolvimento)* | `apps/frontend/` |
+
+### Pacotes Compartilhados (`packages/`)
+
+| Pacote | Responsabilidade | Documentação |
+| :--- | :--- | :--- |
+| **`ml-core`** | Biblioteca contendo o pré-processador de dados (`DataPreprocessor`), a definição do pipeline scikit-learn (`create_training_pipeline`), o estimador XGBoost e o cálculo de métricas. | `packages/ml-core/README.md` |
+| **`geocoding-client`** | Cliente HTTP resiliente (síncrono e assíncrono) com retentativas exponenciais, circuit breaker e pooling para comunicação direta com a `geocoding-api`. | `packages/geocoding-client/README.md` |
+| **`logging-config`** | Configuração centralizada e formatada de logging baseada em Loguru utilizada de forma homogênea por todos os componentes do repositório. | `packages/logging-config/README.md` |
+
+---
+
+## Configuração e Requisitos Globais
+
+### Pré-requisitos de Sistema
+
+- **Python `>=3.12`**
+- **Gerenciador de Pacotes `uv`**: Ferramenta de alta velocidade para resolução de dependências e workspace (`https://docs.astral.sh/uv/`).
+- **Docker e Docker Compose**: Para execução dos contêineres e bancos de dados locais.
+- **Task**: Orquestrador de comandos via `Taskfile` (`https://taskfile.dev/`).
+
+### Instalação do Ambiente de Desenvolvimento
+
+Clone o repositório e sincronize o workspace inteiro utilizando o `uv`:
 
 ```bash
-uv sync
+# Sincroniza todas as dependências do monorepo e pacotes locais em modo editável
+uv sync --all-packages
 ```
 
-## Usage
+O comando criará um ambiente virtual único na raiz (`.venv`) contendo todos os pacotes e aplicações integrados.
 
-The project provides a unified Command-Line Interface (`meu-ape`) with dedicated subcommands.
+---
 
-### 1. Data Extraction (Scraping)
+## Execução e Automação de Tarefas
 
-Execute full partition scraping across categories and price ranges:
+Cada serviço e biblioteca do monorepo possui seu próprio `Taskfile.yml` com comandos padronizados de desenvolvimento, qualidade e execução:
 
 ```bash
-# Synchronous multi-threaded extraction
-uv run python main.py scrape --workers 2
+# Execução de testes unitários em uma aplicação ou pacote específico
+task -d apps/backend test
+task -d apps/geocoding-api test
+task -d apps/ml-worker test
+task -d packages/ml-core test
+task -d packages/geocoding-client test
+task -d packages/logging-config test
 
-# High-speed asynchronous extraction
-uv run python main.py scrape-async --concurrency 5
+# Verificação estática de código e tipagem
+task -d apps/backend lint
+task -d apps/backend verify
 ```
 
-### 2. Dataset Deduplication
-
-Identify physical properties listed across multiple agencies and extract unique assets:
-
-```bash
-uv run python main.py deduplicate
-```
-
-### 3. Catalog Coverage Validation
-
-Compare local dataset coverage against total listings published on Zap Imóveis:
-
-```bash
-uv run python main.py validate
-```
-
-## Exploratory Data Analysis & Modeling
-
-Data analysis and machine learning workflows are located in the `notebooks/` directory:
-
-- `01_data_cleaning.ipynb` — Data sanitization and missing value imputation
-- `02_data_enrichment.ipynb` — Geocoding and spatial metadata enrichment
-- `03_data_exploration.ipynb` — Market distributions and price correlation analysis
-- `04_feature_engineering.ipynb` — Spatial and structural feature extraction
-- `05_modeling.ipynb` — Model training (XGBoost, LightGBM) and evaluation
+Para subir a infraestrutura completa de microsserviços conteinerizados, consulte as orientações específicas no README de cada aplicação:
+- Para a API de inferência: consulte `apps/backend/README.md`
+- Para a infraestrutura de geocodificação e mapas: consulte `apps/geocoding-api/README.md`.
+- Para o pipeline de treinamento de modelos: consulte `apps/ml-worker/README.md`.
