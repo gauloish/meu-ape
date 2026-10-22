@@ -1,15 +1,20 @@
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
-import httpx
+"""Testes unitários para a classe GeocodingClient (client.py)."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
+import pytest
 from geocoding_client import (
-    GeocodingClient,
-    AuthenticationError,
     AddressNotFound,
+    AuthenticationError,
+    CoordinateRequest,
+    GeoAPIError,
+    GeocodingClient,
+    HTTPConnectionError,
     RateLimitExceeded,
     ServerError,
-    CoordinateRequest,
 )
+from geocoding_client.config import ClientSettings
 
 VALID_KEY = "test_secret_key"
 
@@ -22,7 +27,46 @@ def test_client_init_and_env():
     assert client._headers["X-API-Key"] == "minha_chave"
 
 
-def test_client_header_injection():
+@pytest.mark.anyio
+async def test_client_context_manager():
+    """Testa o contexto assíncrono (__aenter__ e __aexit__)."""
+    mock_httpx = AsyncMock()
+    mock_httpx.is_closed = False
+    mock_httpx.aclose = AsyncMock()
+
+    client = GeocodingClient(api_key=VALID_KEY)
+    client._http_client = mock_httpx
+
+    async with client as c:
+        assert c is client
+
+    mock_httpx.aclose.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_client_close_external_client():
+    """Garante que fechar o cliente não encerra um httpx.AsyncClient fornecido externamente."""
+    mock_external = AsyncMock()
+    mock_external.is_closed = False
+    mock_external.aclose = AsyncMock()
+
+    client = GeocodingClient(http_client=mock_external)
+    await client.close()
+
+    mock_external.aclose.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_client_close_internal_client():
+    """Garante fechamento correto da sessão quando criado internamente."""
+    client = GeocodingClient()
+    assert not client._http_client.is_closed
+    await client.close()
+    assert client._http_client.is_closed
+
+
+@pytest.mark.anyio
+async def test_client_header_injection():
     """Testa se o cabeçalho X-API-Key é injetado nas requisições."""
     mock_resp = MagicMock()
     mock_resp.is_success = True
@@ -42,51 +86,133 @@ def test_client_header_injection():
     mock_httpx.request = AsyncMock(return_value=mock_resp)
 
     client = GeocodingClient(api_key=VALID_KEY, http_client=mock_httpx)
-    result = asyncio.run(client.geocode("Rua 1"))
+    result = await client.geocode("Rua 1")
 
     assert result.source == "cache"
+    assert result.data is not None
     assert result.data.latitude == -16.68
     assert mock_httpx.request.call_count == 1
 
 
-def test_exception_mapping_401():
-    """Testa lançamento de AuthenticationError em HTTP 401."""
+@pytest.mark.parametrize(
+    ("status_code", "expected_exception"),
+    [
+        (401, AuthenticationError),
+        (404, AddressNotFound),
+        (500, ServerError),
+        (502, ServerError),
+        (503, ServerError),
+        (504, ServerError),
+        (400, GeoAPIError),
+    ],
+)
+def test_handle_response_error_status_codes(
+    status_code: int, expected_exception: type[Exception]
+):
+    """Testa mapeamento dos códigos de status HTTP para exceções tipadas."""
     mock_resp = MagicMock()
     mock_resp.is_success = False
-    mock_resp.status_code = 401
-    mock_resp.json.return_value = {"detail": "API Key inválida."}
+    mock_resp.status_code = status_code
+    mock_resp.json.return_value = {"detail": f"Erro simulado {status_code}"}
 
-    mock_httpx = AsyncMock()
-    mock_httpx.request = AsyncMock(return_value=mock_resp)
+    client = GeocodingClient()
+    with pytest.raises(expected_exception) as exc_info:
+        client._handle_response_error(mock_resp)
 
-    client = GeocodingClient(http_client=mock_httpx)
-    try:
-        asyncio.run(client.geocode("Rua 1"))
-        assert False, "Deveria ter lançado AuthenticationError"
-    except AuthenticationError as exc:
-        assert exc.status_code == 401
-        assert "API Key inválida" in str(exc)
+    assert exc_info.value.status_code == status_code
 
 
-def test_exception_mapping_404():
-    """Testa lançamento de AddressNotFound em HTTP 404."""
+def test_handle_response_error_non_json():
+    """Testa tratamento de erro quando o corpo da resposta não é JSON válido."""
     mock_resp = MagicMock()
     mock_resp.is_success = False
-    mock_resp.status_code = 404
-    mock_resp.json.return_value = {"detail": "Endereço não encontrado."}
+    mock_resp.status_code = 502
+    mock_resp.json.side_effect = ValueError("Corpo não é JSON")
+    mock_resp.text = "Bad Gateway"
+
+    client = GeocodingClient()
+    with pytest.raises(ServerError) as exc_info:
+        client._handle_response_error(mock_resp)
+
+    assert "Bad Gateway" in str(exc_info.value)
+
+
+def test_handle_response_error_rate_limit_with_header():
+    """Testa extração do cabeçalho Retry-After em RateLimitExceeded (429)."""
+    mock_resp = MagicMock()
+    mock_resp.is_success = False
+    mock_resp.status_code = 429
+    mock_resp.headers = {"Retry-After": "12.5"}
+    mock_resp.json.return_value = {"detail": "Rate limit"}
+
+    client = GeocodingClient()
+    with pytest.raises(RateLimitExceeded) as exc_info:
+        client._handle_response_error(mock_resp)
+
+    assert exc_info.value.retry_after == 12.5
+
+
+@pytest.mark.anyio
+async def test_request_with_backoff_connection_error():
+    """Testa lançamento de HTTPConnectionError quando httpx.RequestError ocorre."""
+    mock_httpx = AsyncMock()
+    mock_httpx.request = AsyncMock(side_effect=httpx.ConnectError("Falha de conexão"))
+
+    settings = ClientSettings(max_retries=1, backoff_factor=0.01)
+    client = GeocodingClient(settings=settings, http_client=mock_httpx)
+
+    with pytest.raises(HTTPConnectionError) as exc_info:
+        await client._request_with_backoff("GET", "/test")
+
+    assert "Erro de conexão HTTP" in str(exc_info.value)
+
+
+@pytest.mark.anyio
+async def test_health_check_success():
+    """Testa chamada ao endpoint /health com retorno 200."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "status": "online",
+        "message": "Operacional",
+        "database": True,
+        "nominatim": True,
+    }
 
     mock_httpx = AsyncMock()
-    mock_httpx.request = AsyncMock(return_value=mock_resp)
+    mock_httpx.get = AsyncMock(return_value=mock_resp)
 
     client = GeocodingClient(http_client=mock_httpx)
-    try:
-        asyncio.run(client.geocode("Rua Inexistente"))
-        assert False, "Deveria ter lançado AddressNotFound"
-    except AddressNotFound as exc:
-        assert exc.status_code == 404
+    health = await client.health_check()
+
+    assert health.status == "online"
+    assert health.database is True
 
 
-def test_batch_geocode_and_backoff_retry():
+@pytest.mark.anyio
+async def test_health_check_degraded_503():
+    """Testa chamada ao endpoint /health com retorno 503 (degraded)."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = 503
+    mock_resp.json.return_value = {
+        "status": "degraded",
+        "message": "Banco indisponível",
+        "database": False,
+        "nominatim": True,
+    }
+
+    mock_httpx = AsyncMock()
+    mock_httpx.get = AsyncMock(return_value=mock_resp)
+
+    client = GeocodingClient(http_client=mock_httpx)
+    health = await client.health_check()
+
+    assert health.status == "degraded"
+    assert health.database is False
+
+
+@pytest.mark.anyio
+async def test_batch_geocode_and_backoff_retry():
     """Testa requisição em lote com retentativa por RateLimit (429) via Backoff."""
     resp_429 = MagicMock()
     resp_429.is_success = False
@@ -113,23 +239,68 @@ def test_batch_geocode_and_backoff_retry():
     }
 
     mock_httpx = AsyncMock()
-    # Primeira chamada retorna 429, segunda chamada retorna 200
     mock_httpx.request = AsyncMock(side_effect=[resp_429, resp_200])
 
     client = GeocodingClient(http_client=mock_httpx)
-
-    # Reduz o tempo de espera do retry durante os testes
     client.settings.backoff_factor = 0.01
 
-    res = asyncio.run(client.batch_geocode(["Av T-63"]))
+    res = await client.batch_geocode(["Av T-63"])
 
     assert len(res.results) == 1
+    assert res.results[0].data is not None
     assert res.results[0].data.address == "Av T-63"
     assert mock_httpx.request.call_count == 2
 
 
-def test_batch_reverse_geocode():
-    """Testa busca reversa em lote com tuplas de coordenadas."""
+@pytest.mark.anyio
+async def test_batch_geocode_empty():
+    """Testa que passar lista vazia para batch_geocode retorna imediatamente sem requisição."""
+    mock_httpx = AsyncMock()
+    client = GeocodingClient(http_client=mock_httpx)
+
+    res = await client.batch_geocode([])
+    assert len(res.results) == 0
+    mock_httpx.request.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_batch_geocode_chunk_failure_fallback():
+    """Garante que falha em um sub-lote gera entradas de erro sem quebrar a execução."""
+    mock_httpx = AsyncMock()
+    mock_httpx.request = AsyncMock(side_effect=RuntimeError("Falha irrecuperável"))
+
+    client = GeocodingClient(http_client=mock_httpx)
+    res = await client.batch_geocode(["Endereço 1", "Endereço 2"])
+
+    assert len(res.results) == 2
+    assert res.results[0].source == "error"
+    assert res.results[0].data is None
+
+
+@pytest.mark.anyio
+async def test_reverse_geocode():
+    """Testa geocodificação reversa individual."""
+    mock_resp = MagicMock()
+    mock_resp.is_success = True
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "source": "cache",
+        "data": {"road": "Av Goiás", "city": "Goiânia"},
+    }
+
+    mock_httpx = AsyncMock()
+    mock_httpx.request = AsyncMock(return_value=mock_resp)
+
+    client = GeocodingClient(http_client=mock_httpx)
+    res = await client.reverse_geocode(-16.68, -49.25)
+
+    assert res.source == "cache"
+    assert res.data == {"road": "Av Goiás", "city": "Goiânia"}
+
+
+@pytest.mark.anyio
+async def test_batch_reverse_geocode_chunking_and_types():
+    """Testa busca reversa em lote com CoordinateRequest e tuplas, e chunking."""
     mock_resp = MagicMock()
     mock_resp.is_success = True
     mock_resp.status_code = 200
@@ -147,25 +318,58 @@ def test_batch_reverse_geocode():
     mock_httpx.request = AsyncMock(return_value=mock_resp)
 
     client = GeocodingClient(http_client=mock_httpx)
-    res = asyncio.run(client.batch_reverse_geocode([(-16.68, -49.25)]))
+    coords = [CoordinateRequest(latitude=-16.68, longitude=-49.25), (-16.70, -49.26)]
+    res = await client.batch_reverse_geocode(coords)
 
     assert len(res.results) == 1
     assert res.results[0].source == "cache"
-    assert res.results[0].data["display_name"] == "Praça Cívica"
 
 
-if __name__ == "__main__":
-    print("Iniciando suíte de testes do geocoding-client...")
-    test_client_init_and_env()
-    print("[PASS] test_client_init_and_env")
-    test_client_header_injection()
-    print("[PASS] test_client_header_injection")
-    test_exception_mapping_401()
-    print("[PASS] test_exception_mapping_401")
-    test_exception_mapping_404()
-    print("[PASS] test_exception_mapping_404")
-    test_batch_geocode_and_backoff_retry()
-    print("[PASS] test_batch_geocode_and_backoff_retry")
-    test_batch_reverse_geocode()
-    print("[PASS] test_batch_reverse_geocode")
-    print("Todos os testes do cliente passaram com sucesso!")
+@pytest.mark.anyio
+async def test_batch_reverse_geocode_empty():
+    """Testa lista vazia para batch_reverse_geocode."""
+    mock_httpx = AsyncMock()
+    client = GeocodingClient(http_client=mock_httpx)
+
+    res = await client.batch_reverse_geocode([])
+    assert len(res.results) == 0
+    mock_httpx.request.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_batch_reverse_geocode_failure_fallback():
+    """Garante fallback para source='error' em falha no sub-lote reverso."""
+    mock_httpx = AsyncMock()
+    mock_httpx.request = AsyncMock(side_effect=RuntimeError("Falha de rede"))
+
+    client = GeocodingClient(http_client=mock_httpx)
+    res = await client.batch_reverse_geocode([(-16.68, -49.25)])
+
+    assert len(res.results) == 1
+    assert res.results[0].source == "error"
+    assert res.results[0].data is None
+
+
+def test_sync_methods_wrappers():
+    """Valida os métodos auxiliares síncronos (*_sync)."""
+    client = GeocodingClient()
+
+    with patch.object(client, "geocode") as mock_geocode:
+        mock_geocode.return_value = MagicMock()
+        client.geocode_sync("Rua Teste")
+        mock_geocode.assert_called_once_with("Rua Teste")
+
+    with patch.object(client, "batch_geocode") as mock_batch_geo:
+        mock_batch_geo.return_value = MagicMock()
+        client.batch_geocode_sync(["Rua 1"])
+        mock_batch_geo.assert_called_once_with(["Rua 1"])
+
+    with patch.object(client, "reverse_geocode") as mock_rev:
+        mock_rev.return_value = MagicMock()
+        client.reverse_geocode_sync(-16.68, -49.25)
+        mock_rev.assert_called_once_with(-16.68, -49.25)
+
+    with patch.object(client, "batch_reverse_geocode") as mock_batch_rev:
+        mock_batch_rev.return_value = MagicMock()
+        client.batch_reverse_geocode_sync([(-16.68, -49.25)])
+        mock_batch_rev.assert_called_once_with([(-16.68, -49.25)])
