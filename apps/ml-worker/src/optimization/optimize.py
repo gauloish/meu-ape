@@ -27,7 +27,9 @@ def search_space(
     """
 
     return {
-        "model__n_estimators": trial.suggest_int("model__n_estimators", 100, 1000, step=50),
+        "model__n_estimators": trial.suggest_int(
+            "model__n_estimators", 100, 1000, step=50
+        ),
         "model__learning_rate": trial.suggest_float(
             "model__learning_rate", 1e-3, 1e-1, log=True
         ),
@@ -37,8 +39,12 @@ def search_space(
         "model__colsample_bytree": trial.suggest_float(
             "model__colsample_bytree", 0.5, 1.0, step=0.1
         ),
-        "model__reg_alpha": trial.suggest_float("model__reg_alpha", 1e-8, 1e2, log=True),
-        "model__reg_lambda": trial.suggest_float("model__reg_lambda", 1e-3, 1e2, log=True),
+        "model__reg_alpha": trial.suggest_float(
+            "model__reg_alpha", 1e-8, 1e2, log=True
+        ),
+        "model__reg_lambda": trial.suggest_float(
+            "model__reg_lambda", 1e-3, 1e2, log=True
+        ),
         "model__objective": "reg:absoluteerror",
         "model__log_c": 1.0,
         "model__random_state": random_state,
@@ -98,7 +104,7 @@ def optimize_hyperparameters(
 
             mae = -float(np.mean(scores))
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(f"Trial {trial.number} falhou com erro: {exc}")
             mae = float("inf")
 
