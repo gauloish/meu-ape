@@ -67,6 +67,26 @@ tasks:
     cmds:
       - uv run ruff check .
 
+  format:
+    desc: "Executa formatação de código com o Ruff via uv"
+    cmds:
+      - uv run ruff format --check .
+
+  verify:
+    desc: "Executa verificação estática de código com o ty via uv"
+    cmds:
+      - uv run ty check .
+
+  test:
+    desc: "Executa a suíte de testes unitários com pytest via uv"
+    cmds:
+      - uv run pytest -v
+
+  test-cov:
+    desc: "Executa a suíte de testes com medição de cobertura de código via uv"
+    cmds:
+      - uv run --with pytest-cov pytest --cov=src tests
+
   run:
     desc: "Fluxo completo: Prepara o mapa e sobe a infraestrutura Docker"
     cmds:
