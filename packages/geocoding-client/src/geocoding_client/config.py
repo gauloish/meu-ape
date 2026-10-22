@@ -23,7 +23,7 @@ class ClientSettings(BaseSettings):
         default="http://localhost:8004",
         description="URL base da API interna de Geocodificação (ex: GEO_API_URL)",
     )
-    
+
     geo_api_key: str = Field(
         default="geocoding_secret_key_change_me",
         description="Chave de autenticação M2M enviada via X-API-Key (ex: GEO_API_KEY)",
@@ -38,7 +38,7 @@ class ClientSettings(BaseSettings):
         default=5,
         description="Número máximo de tentativas no exponential backoff em 429/5xx",
     )
-    
+
     backoff_factor: float = Field(
         default=2.0,
         description="Fator multiplicador do intervalo de backoff exponencial em segundos",

@@ -16,7 +16,9 @@ class GeoAPIError(Exception):
         response_data (Any): Corpo da resposta da API (JSON/dict ou texto bruto).
     """
 
-    def __init__(self, message: str, status_code: int | None = None, response_data: Any = None) -> None:
+    def __init__(
+        self, message: str, status_code: int | None = None, response_data: Any = None
+    ) -> None:
         """Inicializa a exceção GeoAPIError.
 
         Args:
@@ -32,20 +34,16 @@ class GeoAPIError(Exception):
     def __str__(self) -> str:
         if self.status_code:
             return f"[{self.status_code}] {self.message}"
-            
+
         return self.message
 
 
 class AuthenticationError(GeoAPIError):
     """Lançada quando a chave de API enviada via X-API-Key é inválida ou ausente (HTTP 401)."""
 
-    pass
-
 
 class AddressNotFound(GeoAPIError):
     """Lançada quando um endereço textual ou coordenada geográfica não é localizada (HTTP 404)."""
-
-    pass
 
 
 class RateLimitExceeded(GeoAPIError):
@@ -75,10 +73,6 @@ class RateLimitExceeded(GeoAPIError):
 class ServerError(GeoAPIError):
     """Lançada quando a API de geocodificação ou o servidor Nominatim reportam erro interno (HTTP 500, 502, 503, 504)."""
 
-    pass
-
 
 class HTTPConnectionError(GeoAPIError):
     """Lançada quando ocorre uma falha física de rede, timeout ou recusa de conexão."""
-
-    pass

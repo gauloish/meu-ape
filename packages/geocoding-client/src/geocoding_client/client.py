@@ -1,4 +1,5 @@
 import asyncio
+from types import TracebackType
 from typing import Any, Self
 
 import httpx
@@ -30,6 +31,7 @@ from geocoding_client.schemas import (
     GeocodingResponse,
     HealthResponse,
     ReverseGeocodingResponse,
+    ReverseGeocodingResult,
 )
 
 config_logger()
@@ -92,7 +94,12 @@ class GeocodingClient:
         """Entra no contexto assíncrono do cliente."""
         return self
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Encerra o contexto assíncrono fechando as conexões HTTP."""
         await self.close()
 
@@ -127,7 +134,7 @@ class GeocodingClient:
             body = response.json()
             message = body.get("detail", response.text)
 
-        except Exception:
+        except Exception:  # noqa: BLE001
             body = None
             message = response.text or f"Erro HTTP {status_code}"
 
@@ -177,7 +184,7 @@ class GeocodingClient:
         retrier = AsyncRetrying(
             stop=stop_after_attempt(self.settings.max_retries),
             wait=wait_exponential_jitter(
-                initial=self.settings.backoff_factor, max=30.0
+                multiplier=self.settings.backoff_factor, max=30.0
             ),
             retry=retry_if_exception_type(
                 (RateLimitExceeded, ServerError, HTTPConnectionError)
@@ -289,7 +296,7 @@ class GeocodingClient:
                 )
                 sub_batch = BatchGeocodingResponse.model_validate(response.json())
                 all_results.extend(sub_batch.results)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     f"Falha no sub-lote de geocodificação ({i} a {i + len(chunk)}): {exc}"
                 )
@@ -368,16 +375,17 @@ class GeocodingClient:
                     response.json()
                 )
                 all_results.extend(sub_batch.results)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     f"Falha no sub-lote de geocodificação reversa ({i} a {i + len(chunk)}): {exc}"
                 )
                 empty_results = [
-                    ReverseGeocodingResponse(
+                    ReverseGeocodingResult(
+                        query=coord,
                         source="error",
                         data=None,
                     )
-                    for _ in chunk
+                    for coord in chunk
                 ]
                 all_results.extend(empty_results)
 
