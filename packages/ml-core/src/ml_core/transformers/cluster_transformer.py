@@ -73,7 +73,7 @@ class ClusterTransformer(TransformerMixin, BaseEstimator):
 
         if len(valid_coords) > 0:
             actual_n_clusters = min(self.n_clusters, len(valid_coords))
-            
+
             self.kmeans_ = KMeans(
                 n_clusters=actual_n_clusters,
                 random_state=self.random_state,
@@ -132,13 +132,17 @@ class ClusterTransformer(TransformerMixin, BaseEstimator):
             ValueError: Se faltarem colunas de coordenadas necessárias.
         """
         if not isinstance(X, pd.DataFrame):
-            raise TypeError(f"{self.__class__.__name__} espera um pandas.DataFrame, mas recebeu {type(X).__name__}.")
+            raise TypeError(
+                f"{self.__class__.__name__} espera um pandas.DataFrame, mas recebeu {type(X).__name__}."
+            )
 
         required = {self.lat_feature, self.lon_feature}
         missing = required - set(X.columns)
 
         if missing:
-            raise ValueError(f"Colunas obrigatórias ausentes no DataFrame: {sorted(missing)}")
+            raise ValueError(
+                f"Colunas obrigatórias ausentes no DataFrame: {sorted(missing)}"
+            )
 
     def __sklearn_is_fitted__(self) -> bool:
         """Verifica se o transformador foi ajustado."""

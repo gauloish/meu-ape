@@ -143,7 +143,7 @@ class DataCleaner:
                     f"Percentual de consistência dos dados do título: {accuracy_pct:.2f}%."
                 )
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 f"Não foi possível validar consistência dos dados do título: {exc}"
             )

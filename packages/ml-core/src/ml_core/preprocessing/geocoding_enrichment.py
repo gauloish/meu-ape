@@ -93,7 +93,7 @@ class GeocodingEnricher:
                         lat_map[res.data.address] = res.data.latitude
                         lon_map[res.data.address] = res.data.longitude
 
-            except Exception as err:
+            except Exception as err:  # noqa: BLE001
                 logger.error(f"Falha ao executar geocodificação em lote: {err}")
 
         df["latitude"] = df["endereco"].map(lat_map).astype(np.float64)
