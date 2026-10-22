@@ -105,6 +105,12 @@ task -d apps/backend verify
 ```
 
 Para subir a infraestrutura completa de microsserviços conteinerizados, consulte as orientações específicas no README de cada aplicação:
-- Para a API de inferência: consulte `apps/backend/README.md`
-- Para a infraestrutura de geocodificação e mapas: consulte `apps/geocoding-api/README.md`.
-- Para o pipeline de treinamento de modelos: consulte `apps/ml-worker/README.md`.
+- Para a API de inferência: consulte [apps/backend/README.md](file:///home/gauloish/.dev/ds/projects/meu-ape/apps/backend/README.md).
+- Para a infraestrutura de geocodificação e mapas: consulte [apps/geocoding-api/README.md](file:///home/gauloish/.dev/ds/projects/meu-ape/apps/geocoding-api/README.md).
+- Para o pipeline de treinamento de modelos: consulte [apps/ml-worker/README.md](file:///home/gauloish/.dev/ds/projects/meu-ape/apps/ml-worker/README.md).
+
+---
+
+## Licença
+
+Este projeto está licenciado sob os termos da **Licença MIT**. Consulte o arquivo `LICENSE` para obter mais detalhes.
