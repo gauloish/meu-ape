@@ -15,14 +15,20 @@ class InferenceRequest(BaseModel):
     """Schema de entrada para inferência de preço de imóvel."""
 
     # Variáveis Textuais
-    tipo_imovel: Literal["apartamento","casa", "cobertura", "sobrado", "flat", "studio", "outro"] = Field(description="Tipo do imóvel (casa, apartamento, etc)")
+    tipo_imovel: Literal[
+        "apartamento", "casa", "cobertura", "sobrado", "flat", "studio", "outro"
+    ] = Field(description="Tipo do imóvel (casa, apartamento, etc)")
 
     # Variáveis Numéricas
     condominio: int = Field(ge=0, le=5000, description="Valor do condomínio em R$")
-    area_m2: int = Field(ge=20, le=1000, description="Área útil do imóvel em metros quadrados (m²)")
+    area_m2: int = Field(
+        ge=20, le=1000, description="Área útil do imóvel em metros quadrados (m²)"
+    )
     quartos: int = Field(ge=0, le=8, description="Quantidade de quartos no imóvel")
     banheiros: int = Field(ge=0, le=8, description="Quantidade de banheiros no imóvel")
-    vagas: int = Field(ge=0, le=8, description="Quantidade de vagas de garagem no imóvel")
+    vagas: int = Field(
+        ge=0, le=8, description="Quantidade de vagas de garagem no imóvel"
+    )
 
     # Variáveis Booleanas (Opcionais)
     piscina: bool = Field(default=False, description="")
@@ -55,8 +61,18 @@ class InferenceRequest(BaseModel):
     servicos_sustentaveis: bool = Field(default=False, description="")
 
     # Variáveis Geográficas
-    latitude: float = Field(default=float("nan"), ge=MIN_LATITUDE, le=MAX_LATITUDE, description="Latitude do imóvel")
-    longitude: float = Field(default=float("nan"), ge=MIN_LONGITUDE, le=MAX_LONGITUDE, description="Longitude do imóvel")
+    latitude: float = Field(
+        default=float("nan"),
+        ge=MIN_LATITUDE,
+        le=MAX_LATITUDE,
+        description="Latitude do imóvel",
+    )
+    longitude: float = Field(
+        default=float("nan"),
+        ge=MIN_LONGITUDE,
+        le=MAX_LONGITUDE,
+        description="Longitude do imóvel",
+    )
 
 
 class PredictionResponse(BaseModel):
@@ -78,4 +94,6 @@ class HealthResponse(BaseModel):
     """Schema de resposta para checagem de saúde da API e status do modelo."""
 
     status: str = Field(default="healthy", description="Status geral da aplicação.")
-    model_loaded: bool = Field(..., description="Indica se o modelo de ML está carregado na memória.")
+    model_loaded: bool = Field(
+        ..., description="Indica se o modelo de ML está carregado na memória."
+    )

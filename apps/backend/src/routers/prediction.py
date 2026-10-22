@@ -1,6 +1,6 @@
 """Roteador para inferência de preços de imóveis via modelo de Machine Learning."""
 
-from typing import Any
+from typing import Annotated, Any
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -39,7 +39,7 @@ def request_to_dataframe(payload: InferenceRequest) -> pd.DataFrame:
 )
 def predict_imovel_price(
     payload: InferenceRequest,
-    model: Any = Depends(get_model),
+    model: Annotated[Any, Depends(get_model)],
 ) -> PredictionResponse:
     """Recebe os dados do imóvel e executa a inferência utilizando o modelo XGBoost carregado."""
     try:
@@ -67,5 +67,5 @@ def predict_imovel_price(
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Falha ao processar inferência do modelo: {str(exc)}",
-        )
+            detail=f"Falha ao processar inferência do modelo: {exc!s}",
+        ) from exc

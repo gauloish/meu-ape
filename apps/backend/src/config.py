@@ -30,7 +30,9 @@ class Settings(BaseSettings):
     # Server Configuration
     host: str = Field(default="0.0.0.0", description="Host de binding do servidor.")
     port: int = Field(default=8001, description="Porta HTTP do servidor.")
-    log_level: str = Field(default="INFO", description="Nível de log (DEBUG, INFO, WARNING, ERROR).")
+    log_level: str = Field(
+        default="INFO", description="Nível de log (DEBUG, INFO, WARNING, ERROR)."
+    )
 
     # CORS Configuration
     cors_origins: str = Field(
@@ -52,7 +54,9 @@ class Settings(BaseSettings):
             return ["*"]
         if self.cors_origins.strip() == "*":
             return ["*"]
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        return [
+            origin.strip() for origin in self.cors_origins.split(",") if origin.strip()
+        ]
 
 
 settings = Settings()

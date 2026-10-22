@@ -41,7 +41,9 @@ def load_model_from_hub() -> object:
         cache_dir=cache_dir,
     )
 
-    logger.info(f"Artefato do modelo localizado em: {model_path}. Carregando em memória...")
+    logger.info(
+        f"Artefato do modelo localizado em: {model_path}. Carregando em memória..."
+    )
     model = joblib.load(model_path)
     logger.info("Modelo de Machine Learning carregado na memória com sucesso!")
     return model
@@ -58,7 +60,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     try:
         app.state.model = load_model_from_hub()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.error(
             f"Erro ao carregar o modelo do Hugging Face Hub na inicialização: {exc}",
             exc_info=True,
