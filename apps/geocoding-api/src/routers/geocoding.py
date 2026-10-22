@@ -1,5 +1,6 @@
 import asyncio
 import json
+from typing import Annotated
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -46,9 +47,9 @@ router = APIRouter(
 @limiter.limit(get_rate_limit_default)
 async def search_address(
     request: Request,
-    address: str = Query(..., description="Endereço completo para buscar"),
-    db: AsyncSession = Depends(get_db),
-    client: httpx.AsyncClient = Depends(get_http_client),
+    address: Annotated[str, Query(description="Endereço completo para buscar")],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    client: Annotated[httpx.AsyncClient, Depends(get_http_client)],
 ) -> GeocodingResponse:
     repo = GeocodingRepository(db)
 
@@ -67,7 +68,7 @@ async def search_address(
                     formatted_address=cached_address.formatted_address,
                 ),
             )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Erro ao consultar o cache para '{address}': {e}")
 
     # 2. Cache MISS — Consulta o Nominatim
@@ -104,7 +105,7 @@ async def search_address(
         try:
             await repo.add(new_cache, auto_commit=True)
             logger.info(f"Novo endereço salvo no cache: '{address}'")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Não foi possível salvar no cache: {e}")
 
         return GeocodingResponse(
@@ -135,8 +136,8 @@ async def search_address(
 async def batch_search_address(
     request: Request,
     body: BatchGeocodingRequest,
-    db: AsyncSession = Depends(get_db),
-    client: httpx.AsyncClient = Depends(get_http_client),
+    db: Annotated[AsyncSession, Depends(get_db)],
+    client: Annotated[httpx.AsyncClient, Depends(get_http_client)],
 ) -> BatchGeocodingResponse:
     repo = GeocodingRepository(db)
     final_results_map: dict[str, GeocodingResponse] = {}
@@ -148,7 +149,7 @@ async def batch_search_address(
     # 1. Consulta o cache em lote
     try:
         cache_map = await repo.get_many(unique_addresses)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Erro ao consultar lote no cache: {e}")
         cache_map = {}
 
@@ -193,7 +194,7 @@ async def batch_search_address(
                     data = res.json()
                     if data:
                         return addr, data[0]
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.error(f"Erro ao buscar endereço em lote '{addr}': {e}")
                 return addr, None
 
@@ -236,7 +237,7 @@ async def batch_search_address(
                 logger.info(
                     f"{len(new_caches_to_save)} novos endereços salvos no cache em lote."
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Erro ao salvar lote de endereços no cache: {e}")
 
     # Reorganiza os resultados mantendo a ordem original da requisição (incluindo duplicados)
@@ -268,10 +269,10 @@ async def batch_search_address(
 @limiter.limit(get_rate_limit_default)
 async def reverse_geocode(
     request: Request,
-    lat: float = Query(..., description="Latitude", ge=-90.0, le=90.0),
-    lon: float = Query(..., description="Longitude", ge=-180.0, le=180.0),
-    db: AsyncSession = Depends(get_db),
-    client: httpx.AsyncClient = Depends(get_http_client),
+    lat: Annotated[float, Query(description="Latitude", ge=-90.0, le=90.0)],
+    lon: Annotated[float, Query(description="Longitude", ge=-180.0, le=180.0)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    client: Annotated[httpx.AsyncClient, Depends(get_http_client)],
 ) -> ReverseGeocodingResponse:
     logger.info(f"Reverse geocoding requisitado para Lat: {lat}, Lon: {lon}")
     rev_repo = ReverseGeocodingRepository(db)
@@ -282,7 +283,7 @@ async def reverse_geocode(
         if cached:
             logger.info(f"Reverse cache HIT para Lat: {lat}, Lon: {lon}")
             return ReverseGeocodingResponse(source="cache", data=cached.get_data())
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Erro ao consultar cache de reverse geocoding: {e}")
 
     # 2. Cache MISS — Consulta o Nominatim
@@ -313,7 +314,7 @@ async def reverse_geocode(
             logger.info(
                 f"Novo reverse geocode salvo no cache para Lat: {lat}, Lon: {lon}"
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Erro ao salvar reverse cache no banco: {e}")
 
         return ReverseGeocodingResponse(source="nominatim", data=data)
@@ -335,8 +336,8 @@ async def reverse_geocode(
 async def batch_reverse_geocode(
     request: Request,
     body: BatchReverseGeocodingRequest,
-    db: AsyncSession = Depends(get_db),
-    client: httpx.AsyncClient = Depends(get_http_client),
+    db: Annotated[AsyncSession, Depends(get_db)],
+    client: Annotated[httpx.AsyncClient, Depends(get_http_client)],
 ) -> BatchReverseGeocodingResponse:
     if not body.coordinates:
         return BatchReverseGeocodingResponse(results=[])
@@ -350,7 +351,7 @@ async def batch_reverse_geocode(
     # 1. Consulta cache em lote
     try:
         cache_map = await rev_repo.get_many(coord_tuples)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Erro ao buscar lote no cache de reverse: {e}")
         cache_map = {}
 
@@ -391,7 +392,7 @@ async def batch_reverse_geocode(
                     data = res.json()
                     if "error" not in data:
                         return c, data
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.error(
                         f"Erro ao buscar reverse para ({c.latitude}, {c.longitude}): {e}"
                     )
@@ -432,7 +433,7 @@ async def batch_reverse_geocode(
                 logger.info(
                     f"{len(new_caches_to_save)} novas coordenadas salvas no cache reverse em lote."
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"Erro ao salvar lote de reverse no cache: {e}")
 
     # Reorganiza os resultados na ordem original das requisições

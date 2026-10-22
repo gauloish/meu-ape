@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     nominatim_url: str = "http://nominatim_server:8080"
     user_agent: str = "GeocodingAPI/1.0"
 
+    api_port: int = 8002
     log_level: str = "INFO"
 
     geo_api_key_app: str = Field(

@@ -1,3 +1,5 @@
+from typing import Annotated
+
 import httpx
 from fastapi import APIRouter, Depends, Response, status
 from fastapi.responses import JSONResponse
@@ -23,8 +25,8 @@ router = APIRouter(tags=["Health"])
 )
 async def health_check(
     response: Response,
-    db: AsyncSession = Depends(get_db),
-    client: httpx.AsyncClient = Depends(get_http_client),
+    db: Annotated[AsyncSession, Depends(get_db)],
+    client: Annotated[httpx.AsyncClient, Depends(get_http_client)],
 ) -> HealthResponse | JSONResponse:
     """Diagnóstico ativo da API, PostgreSQL e Nominatim. Endpoint Público."""
     db_healthy = False
@@ -35,7 +37,7 @@ async def health_check(
         res = await db.execute(text("SELECT 1"))
         if res.scalar() == 1:
             db_healthy = True
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Health check DB error: {e}")
 
     # Check Nominatim
@@ -56,7 +58,7 @@ async def health_check(
             )
             if resp_fallback.status_code == 200:
                 nominatim_healthy = True
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"Health check Nominatim error: {e}")
 
     overall_status = (

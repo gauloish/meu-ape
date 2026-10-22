@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any, cast
 
 import httpx
 from fastapi import FastAPI
@@ -38,7 +39,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
             logger.info("Tabelas do banco de dados verificadas/criadas com sucesso.")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(
             f"Não foi possível conectar ao banco de dados na inicialização: {e}"
         )
@@ -59,7 +60,7 @@ app = FastAPI(
 
 # Configura o SlowAPI Limiter globalmente
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, cast(Any, _rate_limit_exceeded_handler))
 
 app.include_router(health_router)
 app.include_router(geocoding_router)
