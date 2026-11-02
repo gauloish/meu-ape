@@ -1,7 +1,6 @@
 """SQLAlchemy ORM models for the meu-ape database schema.
 
 Models:
-    GeocodingCache: Cache of geocoded addresses to avoid redundant API calls.
     Listing: A real-estate property listing scraped from Zap Imóveis.
 """
 

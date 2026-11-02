@@ -8,11 +8,12 @@ import asyncio
 import logging
 import random
 import time
-from typing import Optional
+from typing import Self
 
 try:
     from curl_cffi import requests as cffi_requests
     from curl_cffi.requests import AsyncSession
+
     HAS_CURL_CFFI = True
 except ImportError:
     HAS_CURL_CFFI = False
@@ -60,24 +61,49 @@ class SyncHttpClient:
                 if resp.status_code in (404, 410):
                     return ""
                 if resp.status_code == 429:
-                    wait = min(45.0, 8.0 * (1.5 ** (attempt - 1)) + random.uniform(1.0, 3.0))
-                    logger.warning("HTTP 429 for %s - waiting %.1fs (attempt %d/%d).", url, wait, attempt, self.MAX_RETRIES)
+                    wait = min(
+                        45.0, 8.0 * (1.5 ** (attempt - 1)) + random.uniform(1.0, 3.0)
+                    )
+                    logger.warning(
+                        "HTTP 429 for %s - waiting %.1fs (attempt %d/%d).",
+                        url,
+                        wait,
+                        attempt,
+                        self.MAX_RETRIES,
+                    )
                     time.sleep(wait)
                     continue
 
                 if resp.status_code == 403:
-                    logger.warning("HTTP 403 Forbidden for %s (attempt %d/%d) - resetting session.", url, attempt, self.MAX_RETRIES)
+                    logger.warning(
+                        "HTTP 403 Forbidden for %s (attempt %d/%d) - resetting session.",
+                        url,
+                        attempt,
+                        self.MAX_RETRIES,
+                    )
                     time.sleep(random.uniform(2.0, 4.0))
                     continue
 
-                logger.warning("HTTP status %d for %s (attempt %d/%d).", resp.status_code, url, attempt, self.MAX_RETRIES)
+                logger.warning(
+                    "HTTP status %d for %s (attempt %d/%d).",
+                    resp.status_code,
+                    url,
+                    attempt,
+                    self.MAX_RETRIES,
+                )
                 if attempt < self.MAX_RETRIES:
                     time.sleep(2.0)
                 else:
                     return ""
 
-            except Exception as exc:
-                logger.warning("Connection error for %s (attempt %d/%d): %s", url, attempt, self.MAX_RETRIES, exc)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Connection error for %s (attempt %d/%d): %s",
+                    url,
+                    attempt,
+                    self.MAX_RETRIES,
+                    exc,
+                )
                 if attempt < self.MAX_RETRIES:
                     time.sleep(2.0)
                 else:
@@ -108,11 +134,11 @@ class AsyncHttpClient:
             semaphore: Concurrency limiter to cap simultaneous HTTP connections.
         """
         self.semaphore = semaphore
-        self._session: Optional[AsyncSession] = None
+        self._session: AsyncSession | None = None
         self._lock = asyncio.Lock()
         self._warmed = False
 
-    async def __aenter__(self) -> "AsyncHttpClient":
+    async def __aenter__(self) -> Self:
         """Enter the async context manager, instantiate AsyncSession and warm cookies."""
         self._session = AsyncSession(impersonate="chrome124")
         await self._warmup_session()
@@ -123,7 +149,7 @@ class AsyncHttpClient:
         if self._session:
             try:
                 await self._session.close()
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
 
     async def _warmup_session(self) -> None:
@@ -135,8 +161,11 @@ class AsyncHttpClient:
             resp = await self._session.get(BASE_URL, headers=headers, timeout=15)
             if resp.status_code == 200:
                 self._warmed = True
-                logger.debug("Session warmed up successfully with %d cookies.", len(self._session.cookies))
-        except Exception as exc:
+                logger.debug(
+                    "Session warmed up successfully with %d cookies.",
+                    len(self._session.cookies),
+                )
+        except Exception as exc:  # noqa: BLE001
             logger.warning("Session warmup failed: %s", exc)
 
     async def _reset_session(self) -> None:
@@ -145,7 +174,7 @@ class AsyncHttpClient:
             if self._session:
                 try:
                     await self._session.close()
-                except Exception:
+                except Exception:  # noqa: BLE001, S110
                     pass
             self._session = AsyncSession(impersonate="chrome124")
             await self._warmup_session()
@@ -167,7 +196,9 @@ class AsyncHttpClient:
                 headers = {"Referer": f"{BASE_URL}/"}
 
                 try:
-                    assert self._session is not None, "AsyncHttpClient must be used as async context manager"
+                    assert self._session is not None, (
+                        "AsyncHttpClient must be used as async context manager"
+                    )
                     resp = await self._session.get(url, headers=headers, timeout=15)
 
                     if resp.status_code == 200:
@@ -175,24 +206,51 @@ class AsyncHttpClient:
                     if resp.status_code in (404, 410):
                         return ""
                     if resp.status_code == 429:
-                        wait = min(30.0, 5.0 * (1.5 ** (attempt - 1)) + random.uniform(1.0, 2.0))
-                        logger.warning("[%s] HTTP 429 Rate Limit (attempt #%d/%d). Waiting %.1fs.", label, attempt, self.MAX_RETRIES, wait)
+                        wait = min(
+                            30.0,
+                            5.0 * (1.5 ** (attempt - 1)) + random.uniform(1.0, 2.0),
+                        )
+                        logger.warning(
+                            "[%s] HTTP 429 Rate Limit (attempt #%d/%d). Waiting %.1fs.",
+                            label,
+                            attempt,
+                            self.MAX_RETRIES,
+                            wait,
+                        )
                         await asyncio.sleep(wait)
                         continue
                     if resp.status_code == 403:
-                        logger.warning("[%s] HTTP 403 Forbidden (attempt #%d/%d). Resetting session with warmup.", label, attempt, self.MAX_RETRIES)
+                        logger.warning(
+                            "[%s] HTTP 403 Forbidden (attempt #%d/%d). Resetting session with warmup.",
+                            label,
+                            attempt,
+                            self.MAX_RETRIES,
+                        )
                         await self._reset_session()
                         await asyncio.sleep(random.uniform(2.5, 4.0))
                         continue
 
-                    logger.warning("[%s] HTTP status %d for %s (attempt #%d/%d).", label, resp.status_code, url, attempt, self.MAX_RETRIES)
+                    logger.warning(
+                        "[%s] HTTP status %d for %s (attempt #%d/%d).",
+                        label,
+                        resp.status_code,
+                        url,
+                        attempt,
+                        self.MAX_RETRIES,
+                    )
                     if attempt < self.MAX_RETRIES:
                         await asyncio.sleep(1.5)
                     else:
                         return ""
 
-                except Exception as exc:
-                    logger.warning("[%s] Connection error (attempt #%d/%d): %s", label, attempt, self.MAX_RETRIES, str(exc)[:60])
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "[%s] Connection error (attempt #%d/%d): %s",
+                        label,
+                        attempt,
+                        self.MAX_RETRIES,
+                        str(exc)[:60],
+                    )
                     if attempt < self.MAX_RETRIES:
                         await self._reset_session()
                         await asyncio.sleep(1.5)

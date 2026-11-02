@@ -7,7 +7,7 @@ to support resilient resumption of interrupted scraping tasks.
 import asyncio
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Set
+from typing import Any
 
 import pandas as pd
 
@@ -38,9 +38,9 @@ class CheckpointStore:
         """
         self.output_path = output_path
         self.buffer_size = buffer_size
-        self._buffer: List[Dict[str, Any]] = []
+        self._buffer: list[dict[str, Any]] = []
         self._lock = asyncio.Lock()
-        self.seen_ids: Set[str] = set()
+        self.seen_ids: set[str] = set()
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         self._load_existing_ids()
@@ -56,7 +56,7 @@ class CheckpointStore:
         """
         return listing_id not in self.seen_ids
 
-    def register(self, listing_id: str, record: Dict[str, Any]) -> None:
+    def register(self, listing_id: str, record: dict[str, Any]) -> None:
         """Mark a listing ID as seen and append its record to the buffer.
 
         Args:
@@ -66,7 +66,7 @@ class CheckpointStore:
         self.seen_ids.add(listing_id)
         self._buffer.append(record)
 
-    def add_many(self, records: List[Dict[str, Any]]) -> int:
+    def add_many(self, records: list[dict[str, Any]]) -> int:
         """Filter out seen listings and append new records to the internal buffer.
 
         Note:
@@ -119,8 +119,11 @@ class CheckpointStore:
         try:
             df = pd.read_csv(self.output_path, low_memory=False, usecols=["id"])
             self.seen_ids = set(df["id"].dropna().astype(str).tolist())
-            logger.info("Resuming extraction: loaded %d existing listing IDs.", len(self.seen_ids))
-        except Exception as exc:
+            logger.info(
+                "Resuming extraction: loaded %d existing listing IDs.",
+                len(self.seen_ids),
+            )
+        except Exception as exc:  # noqa: BLE001
             logger.warning("Could not load existing checkpoint file: %s", exc)
 
     def _write_to_disk(self) -> None:

@@ -11,11 +11,11 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
+from src.data.checkpoint import CheckpointStore
 from src.scraping.config import (
     BASE_URL,
     DEFAULT_BUSINESS_TYPE,
@@ -27,7 +27,6 @@ from src.scraping.config import (
 )
 from src.scraping.http_client import SyncHttpClient
 from src.scraping.zap_parser import parse_item
-from src.data.checkpoint import CheckpointStore
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +34,8 @@ logger = logging.getLogger(__name__)
 def build_search_url(
     path: str,
     page: int,
-    price_min: Optional[int],
-    price_max: Optional[int],
+    price_min: int | None,
+    price_max: int | None,
 ) -> str:
     """Build a search URL formatted for Zap Imóveis pagination and price filtering.
 
@@ -57,7 +56,7 @@ def build_search_url(
     return f"{BASE_URL}/{path.strip('/')}/?{'&'.join(params)}"
 
 
-def extract_listings_from_html(html: str) -> List[dict]:
+def extract_listings_from_html(html: str) -> list[dict]:
     """Parse JSON-LD script elements from raw HTML response body.
 
     Args:
@@ -80,7 +79,7 @@ def extract_listings_from_html(html: str) -> List[dict]:
                     raw_item = element.get("item")
                     if raw_item and isinstance(raw_item, dict):
                         listings.append(parse_item(raw_item))
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
     return listings
 
@@ -90,9 +89,9 @@ def scrape_partition(
     store: CheckpointStore,
     lock: threading.Lock,
     search_path: str,
-    price_min: Optional[int],
-    price_max: Optional[int],
-    delay_range: Tuple[float, float] = (3.0, 6.0),
+    price_min: int | None,
+    price_max: int | None,
+    delay_range: tuple[float, float] = (3.0, 6.0),
 ) -> None:
     """Iterate over pagination for a single category and price range partition.
 
@@ -121,9 +120,20 @@ def scrape_partition(
                 store.flush_sync()
 
         if new_count:
-            logger.info("[%s] Page %d: +%d new listings (Total: %d)", label, page, new_count, store.total_seen)
+            logger.info(
+                "[%s] Page %d: +%d new listings (Total: %d)",
+                label,
+                page,
+                new_count,
+                store.total_seen,
+            )
         else:
-            logger.info("[%s] Page %d: %d listings already existing.", label, page, len(listings))
+            logger.info(
+                "[%s] Page %d: %d listings already existing.",
+                label,
+                page,
+                len(listings),
+            )
 
         time.sleep(random.uniform(*delay_range))
 
@@ -132,7 +142,7 @@ def scrape_full(
     city_slug: str = DEFAULT_CITY_SLUG,
     business_type: str = DEFAULT_BUSINESS_TYPE,
     output_filename: str = DEFAULT_OUTPUT_FILENAME,
-    delay_range: Tuple[float, float] = (3.0, 6.0),
+    delay_range: tuple[float, float] = (3.0, 6.0),
     max_workers: int = 1,
 ) -> Path:
     """Execute full extraction across all property categories and price partitions.
@@ -152,7 +162,7 @@ def scrape_full(
     client = SyncHttpClient()
     lock = threading.Lock()
 
-    partitions: List[Tuple] = [
+    partitions: list[tuple] = [
         (f"{business_type}/{cat}/{city_slug}", p_min, p_max)
         for cat in PROPERTY_CATEGORIES
         for p_min, p_max in PRICE_RANGES
@@ -164,20 +174,29 @@ def scrape_full(
         len(partitions),
     )
 
-    with tqdm(total=len(partitions), desc="Partition Progress") as pbar:
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(
-                    scrape_partition, client, store, lock, path, p_min, p_max, delay_range
-                ): path
-                for path, p_min, p_max in partitions
-            }
-            for future in as_completed(futures):
-                pbar.update(1)
-                try:
-                    future.result()
-                except Exception as exc:
-                    logger.warning("Error in partition %s: %s", futures[future], exc)
+    with (
+        tqdm(total=len(partitions), desc="Partition Progress") as pbar,
+        ThreadPoolExecutor(max_workers=max_workers) as executor,
+    ):
+        futures = {
+            executor.submit(
+                scrape_partition,
+                client,
+                store,
+                lock,
+                path,
+                p_min,
+                p_max,
+                delay_range,
+            ): path
+            for path, p_min, p_max in partitions
+        }
+        for future in as_completed(futures):
+            pbar.update(1)
+            try:
+                future.result()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Error in partition %s: %s", futures[future], exc)
 
     with lock:
         store.flush_sync()

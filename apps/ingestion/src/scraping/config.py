@@ -1,10 +1,8 @@
 """Centralised configuration for the Zap Imóveis scraping pipeline."""
 
-from typing import List, Optional, Tuple
-
 BASE_URL = "https://www.zapimoveis.com.br"
 
-USER_AGENTS: List[str] = [
+USER_AGENTS: list[str] = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -23,7 +21,7 @@ DEFAULT_HEADERS = {
     "Upgrade-Insecure-Requests": "1",
 }
 
-PROPERTY_CATEGORIES: List[str] = [
+PROPERTY_CATEGORIES: list[str] = [
     "apartamentos",
     "casas",
     "casas-de-condominio",
@@ -36,10 +34,10 @@ PROPERTY_CATEGORIES: List[str] = [
     "imoveis-comerciais",
 ]
 
-PriceRange = Tuple[Optional[int], Optional[int]]
+PriceRange = tuple[int | None, int | None]
 
 # Fine-grained price bounds designed to prevent partitions from exceeding 50 search pages.
-PRICE_RANGES: List[PriceRange] = [
+PRICE_RANGES: list[PriceRange] = [
     (0, 100_000),
     (100_000, 150_000),
     (150_000, 180_000),

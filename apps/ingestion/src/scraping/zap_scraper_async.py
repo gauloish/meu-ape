@@ -10,11 +10,11 @@ import logging
 import random
 from datetime import date
 from pathlib import Path
-from typing import List, Optional, Set
 
 from bs4 import BeautifulSoup
 from tqdm.asyncio import tqdm_asyncio
 
+from src.data.checkpoint import CheckpointStore
 from src.scraping.config import (
     BASE_URL,
     CHECKPOINT_BUFFER_SIZE,
@@ -27,7 +27,6 @@ from src.scraping.config import (
 )
 from src.scraping.http_client import AsyncHttpClient
 from src.scraping.zap_parser import parse_item
-from src.data.checkpoint import CheckpointStore
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +34,8 @@ logger = logging.getLogger(__name__)
 def build_search_url(
     path: str,
     page: int,
-    price_min: Optional[int],
-    price_max: Optional[int],
+    price_min: int | None,
+    price_max: int | None,
 ) -> str:
     """Build a search URL formatted for Zap Imóveis pagination and price filtering.
 
@@ -57,7 +56,7 @@ def build_search_url(
     return f"{BASE_URL}/{path.strip('/')}/?{'&'.join(params)}"
 
 
-def extract_listings_from_html(html: str) -> List[dict]:
+def extract_listings_from_html(html: str) -> list[dict]:
     """Parse JSON-LD script elements from raw HTML response body.
 
     Args:
@@ -80,7 +79,7 @@ def extract_listings_from_html(html: str) -> List[dict]:
                     raw_item = element.get("item")
                     if raw_item and isinstance(raw_item, dict):
                         listings.append(parse_item(raw_item))
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
     return listings
 
@@ -111,15 +110,14 @@ def _listing_matches_date(record: dict, target_date: date) -> bool:
     return False
 
 
-
 async def scrape_partition(
     client: AsyncHttpClient,
     store: CheckpointStore,
     lock: asyncio.Lock,
     search_path: str,
-    price_min: Optional[int],
-    price_max: Optional[int],
-    known_ids: Optional[Set[str]] = None,
+    price_min: int | None,
+    price_max: int | None,
+    known_ids: set[str] | None = None,
     max_pages: int = MAX_PAGES_PER_PARTITION,
 ) -> None:
     """Asynchronously scrape pagination for a single category and price range partition.
@@ -151,7 +149,8 @@ async def scrape_partition(
             if not new_on_page and page > 1:
                 logger.info(
                     "[%s] Page %d: all listings already in DB — stopping partition.",
-                    label, page
+                    label,
+                    page,
                 )
                 break
 
@@ -161,9 +160,20 @@ async def scrape_partition(
                 await store.flush_async(force=True)
 
         if new_count:
-            logger.info("[%s] Page %d: +%d new listings (Total: %d)", label, page, new_count, store.total_seen)
+            logger.info(
+                "[%s] Page %d: +%d new listings (Total: %d)",
+                label,
+                page,
+                new_count,
+                store.total_seen,
+            )
         else:
-            logger.info("[%s] Page %d: %d listings already existing in store.", label, page, len(listings))
+            logger.info(
+                "[%s] Page %d: %d listings already existing in store.",
+                label,
+                page,
+                len(listings),
+            )
 
         await asyncio.sleep(random.uniform(1.5, 3.0))
 
@@ -172,7 +182,7 @@ async def scrape_full_async(
     city_slug: str = DEFAULT_CITY_SLUG,
     output_filename: str = DEFAULT_OUTPUT_FILENAME,
     concurrency: int = DEFAULT_CONCURRENCY,
-    known_ids: Optional[Set[str]] = None,
+    known_ids: set[str] | None = None,
     max_pages: int = MAX_PAGES_PER_PARTITION,
 ) -> Path:
     """Execute asynchronous extraction across all property categories and price partitions.
@@ -230,16 +240,18 @@ async def scrape_full_async(
     return output_path
 
 
-
 def main() -> None:
     """CLI entry point for running the async scraper module directly."""
     import sys
+
     concurrency = DEFAULT_CONCURRENCY
     for arg in sys.argv[1:]:
-        if arg.startswith("--concurrency=") or arg.startswith("-c="):
+        if arg.startswith(("--concurrency=", "-c=")):
             concurrency = int(arg.split("=")[1])
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
     asyncio.run(scrape_full_async(concurrency=concurrency))
 
 

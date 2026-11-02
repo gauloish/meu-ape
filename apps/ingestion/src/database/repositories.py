@@ -1,17 +1,17 @@
 """Repository implementations for database entity access and persistence."""
 
 from collections.abc import Iterable
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from datetime import UTC, datetime
+from typing import Any
 
 import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.database.models import GeocodingCache, Listing
+from src.database.models import Listing
 
 
-def _safe_float(val: Any) -> Optional[float]:
+def _safe_float(val: Any) -> float | None:
     if val is None or pd.isna(val):
         return None
     try:
@@ -20,7 +20,7 @@ def _safe_float(val: Any) -> Optional[float]:
         return None
 
 
-def _safe_int(val: Any) -> Optional[int]:
+def _safe_int(val: Any) -> int | None:
     if val is None or pd.isna(val):
         return None
     try:
@@ -29,7 +29,7 @@ def _safe_int(val: Any) -> Optional[int]:
         return None
 
 
-def _safe_str(val: Any) -> Optional[str]:
+def _safe_str(val: Any) -> str | None:
     if val is None or pd.isna(val):
         return None
     s = str(val).strip()
@@ -42,7 +42,7 @@ class ListingRepository:
     def __init__(self, session: Session):
         self.session = session
 
-    def get_all_ids(self) -> Set[str]:
+    def get_all_ids(self) -> set[str]:
         """Fetch set of all listing IDs currently stored in the database.
 
         Returns:
@@ -52,8 +52,7 @@ class ListingRepository:
         results = self.session.scalars(stmt).all()
         return set(results)
 
-    def get_existing_ids(self, listing_ids: Iterable[str]) -> Set[str]:
-
+    def get_existing_ids(self, listing_ids: Iterable[str]) -> set[str]:
         """Query database for listing IDs that are already persisted.
 
         Args:
@@ -66,7 +65,7 @@ class ListingRepository:
         if not ids_list:
             return set()
 
-        existing: Set[str] = set()
+        existing: set[str] = set()
         chunk_size = 500
         for i in range(0, len(ids_list), chunk_size):
             chunk = ids_list[i : i + chunk_size]
@@ -75,7 +74,7 @@ class ListingRepository:
             existing.update(results)
         return existing
 
-    def add_many(self, records: List[Dict[str, Any]]) -> int:
+    def add_many(self, records: list[dict[str, Any]]) -> int:
         """Insert new listing records into database, ignoring already existing IDs.
 
         Args:
@@ -88,7 +87,7 @@ class ListingRepository:
             return 0
 
         # Deduplicate batch internally
-        unique_records: Dict[str, Dict[str, Any]] = {}
+        unique_records: dict[str, dict[str, Any]] = {}
         for r in records:
             raw_id = r.get("id") or r.get("listing_id")
             lid = _safe_str(raw_id)
@@ -99,12 +98,14 @@ class ListingRepository:
             return 0
 
         existing_ids = self.get_existing_ids(unique_records.keys())
-        new_records = [r for lid, r in unique_records.items() if lid not in existing_ids]
+        new_records = [
+            r for lid, r in unique_records.items() if lid not in existing_ids
+        ]
 
         if not new_records:
             return 0
 
-        objs: List[Listing] = []
+        objs: list[Listing] = []
         for r in new_records:
             lid = _safe_str(r.get("id") or r.get("listing_id"))
             if not lid:
@@ -115,11 +116,11 @@ class ListingRepository:
                 try:
                     scraped_dt = datetime.fromisoformat(raw_scraped)
                 except (ValueError, TypeError):
-                    scraped_dt = datetime.now(timezone.utc)
+                    scraped_dt = datetime.now(UTC)
             elif isinstance(raw_scraped, datetime):
                 scraped_dt = raw_scraped
             else:
-                scraped_dt = datetime.now(timezone.utc)
+                scraped_dt = datetime.now(UTC)
 
             objs.append(
                 Listing(

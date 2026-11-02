@@ -12,12 +12,11 @@ import asyncio
 import logging
 from datetime import date
 from pathlib import Path
-from typing import Set
 
 import pandas as pd
 
 from src.data.deduplicator import deduplicate_dataset
-from src.database import Base, Session, engine, ListingRepository
+from src.database import Base, ListingRepository, Session, engine
 from src.scraping.zap_scraper_async import scrape_full_async
 
 logger = logging.getLogger(__name__)
@@ -40,13 +39,16 @@ def run_daily_pipeline(
     output_filename = f"zap_daily_{date.today().strftime('%Y%m%d')}.csv"
 
     Base.metadata.create_all(engine)
-    known_ids: Set[str] = set()
+    known_ids: set[str] = set()
     try:
         with Session() as session:
             repo = ListingRepository(session)
             known_ids = repo.get_all_ids()
-        logger.info("Loaded %d existing listing IDs from database for early termination.", len(known_ids))
-    except Exception as exc:
+        logger.info(
+            "Loaded %d existing listing IDs from database for early termination.",
+            len(known_ids),
+        )
+    except Exception as exc:  # noqa: BLE001
         logger.warning("Could not pre-fetch existing IDs from database: %s", exc)
 
     logger.info("=== STEP 1: Running Zap Imóveis Async Scraper ===")
@@ -76,7 +78,9 @@ def run_daily_pipeline(
     df = pd.read_csv(dedup_path, low_memory=False)
     clean_df = df.where(pd.notnull(df), None)
     records = clean_df.to_dict(orient="records")
-    logger.info("Loaded %d deduplicated listing records for database sync.", len(records))
+    logger.info(
+        "Loaded %d deduplicated listing records for database sync.", len(records)
+    )
 
     if dry_run:
         logger.info("[DRY RUN] Skipping database upload.")
@@ -96,14 +100,20 @@ def run_daily_pipeline(
 
 def main() -> None:
     """CLI entry point for daily scrape pipeline."""
-    parser = argparse.ArgumentParser(description="Daily ZAP Imóveis scrape and sync pipeline.")
+    parser = argparse.ArgumentParser(
+        description="Daily ZAP Imóveis scrape and sync pipeline."
+    )
     parser.add_argument("--city", default="go+goiania", help="City slug")
     parser.add_argument("--concurrency", type=int, default=1, help="Concurrency limit")
-    parser.add_argument("--max-pages", type=int, default=10, help="Max pages per partition")
+    parser.add_argument(
+        "--max-pages", type=int, default=10, help="Max pages per partition"
+    )
     parser.add_argument("--dry-run", action="store_true", help="Skip database write")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
     run_daily_pipeline(
         city_slug=args.city,
         concurrency=args.concurrency,

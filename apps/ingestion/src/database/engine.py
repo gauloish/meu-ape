@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, Engine
+from sqlalchemy import Engine, create_engine
 
 load_dotenv()
 
@@ -29,9 +29,15 @@ def _build_engine() -> Engine:
     if database_url:
         # Vercel/Neon provides a postgres:// URL; SQLAlchemy requires the dialect prefix.
         if database_url.startswith("postgres://"):
-            database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
-        elif database_url.startswith("postgresql://") and "+psycopg" not in database_url:
-            database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+            database_url = database_url.replace(
+                "postgres://", "postgresql+psycopg://", 1
+            )
+        elif (
+            database_url.startswith("postgresql://") and "+psycopg" not in database_url
+        ):
+            database_url = database_url.replace(
+                "postgresql://", "postgresql+psycopg://", 1
+            )
         return create_engine(database_url, pool_pre_ping=True)
 
     # Local SQLite fallback for development

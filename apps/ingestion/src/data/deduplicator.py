@@ -7,7 +7,6 @@ real estate asset, keeping the listing record with the highest data completeness
 import logging
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -46,7 +45,11 @@ def _make_physical_signature(row: pd.Series) -> str:
     Returns:
         Canonical string representing the physical asset.
     """
-    if row["rua_norm"] and pd.notnull(row["area_round"]) and pd.notnull(row["preco_round"]):
+    if (
+        row["rua_norm"]
+        and pd.notnull(row["area_round"])
+        and pd.notnull(row["preco_round"])
+    ):
         return (
             f"RUA:{row['rua_norm']}"
             f"|A:{row['area_round']}"
@@ -71,9 +74,15 @@ def _enrich_with_signature(df: pd.DataFrame) -> pd.DataFrame:
     df["rua_norm"] = _normalise_text(df["rua"])
     df["area_round"] = pd.to_numeric(df["area_m2"], errors="coerce").round(0)
     df["preco_round"] = pd.to_numeric(df["preco"], errors="coerce").round(0)
-    df["quartos_clean"] = pd.to_numeric(df["quartos"], errors="coerce").fillna(0).astype(int)
-    df["banheiros_clean"] = pd.to_numeric(df["banheiros"], errors="coerce").fillna(0).astype(int)
-    df["vagas_clean"] = pd.to_numeric(df["vagas"], errors="coerce").fillna(0).astype(int)
+    df["quartos_clean"] = (
+        pd.to_numeric(df["quartos"], errors="coerce").fillna(0).astype(int)
+    )
+    df["banheiros_clean"] = (
+        pd.to_numeric(df["banheiros"], errors="coerce").fillna(0).astype(int)
+    )
+    df["vagas_clean"] = (
+        pd.to_numeric(df["vagas"], errors="coerce").fillna(0).astype(int)
+    )
     df["tipo_norm"] = _normalise_text(df["tipo_imovel"])
     df["property_signature"] = df.apply(_make_physical_signature, axis=1)
     return df
@@ -84,7 +93,10 @@ def _score_richness(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["desc_len"] = df["descricao_completa"].fillna("").astype(str).str.len()
     df["foto_count"] = (
-        df["fotos_urls"].fillna("").astype(str).apply(lambda x: len(x.split(",")) if x else 0)
+        df["fotos_urls"]
+        .fillna("")
+        .astype(str)
+        .apply(lambda x: len(x.split(",")) if x else 0)
     )
     df["has_bairro"] = df["bairro"].notnull().astype(int)
     df["has_rua"] = df["rua"].notnull().astype(int)
@@ -123,7 +135,9 @@ def deduplicate_dataset(
         by=["has_rua", "has_bairro", "foto_count", "desc_len"],
         ascending=[False, False, False, False],
     )
-    df_clean = df_sorted.drop_duplicates(subset=["property_signature"], keep="first").copy()
+    df_clean = df_sorted.drop_duplicates(
+        subset=["property_signature"], keep="first"
+    ).copy()
     df_clean = df_clean.drop(columns=_TEMP_COLUMNS)
 
     df_clean.to_csv(output_path, index=False, encoding="utf-8")
@@ -139,5 +153,7 @@ def deduplicate_dataset(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
     deduplicate_dataset()

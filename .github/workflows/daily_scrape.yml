@@ -27,11 +27,12 @@ jobs:
           python-version-file: ".python-version"
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --frozen --package ingestion
 
       - name: Run Daily Scraper Pipeline
+        working-directory: apps/ingestion
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          uv run python main.py daily-scrape --concurrency 1
+          uv run --frozen --package ingestion python main.py daily-scrape --concurrency 1
 

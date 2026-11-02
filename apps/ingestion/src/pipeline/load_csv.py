@@ -2,11 +2,12 @@
 
 import argparse
 import logging
-from pathlib import Path
 import time
+from pathlib import Path
+
 import pandas as pd
 
-from src.database import Base, Session, engine, ListingRepository
+from src.database import Base, ListingRepository, Session, engine
 
 logger = logging.getLogger(__name__)
 
@@ -27,22 +28,22 @@ def load_csv_to_db(csv_file: Path, chunk_size: int = 2000) -> None:
     Base.metadata.create_all(engine)
 
     logger.info("Reading CSV in chunks of %d from %s...", chunk_size, path)
-    
+
     total_processed = 0
     total_inserted = 0
     start_time = time.time()
-    
+
     for chunk_df in pd.read_csv(path, chunksize=chunk_size, low_memory=False):
         # Convert NaN values to None for SQL null compatibility
         clean_df = chunk_df.where(pd.notnull(chunk_df), None)
         records = clean_df.to_dict(orient="records")
-        
+
         with Session() as session:
             repo = ListingRepository(session)
             inserted = repo.add_many(records)
             total_inserted += inserted
             total_processed += len(records)
-            
+
         elapsed = time.time() - start_time
         logger.info(
             "Processed %d records | Inserted %d new | Elapsed: %.1fs",
@@ -75,7 +76,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
     load_csv_to_db(Path(args.input), chunk_size=args.chunk_size)
 
 

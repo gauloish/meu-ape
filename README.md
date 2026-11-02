@@ -51,7 +51,7 @@ Cada aplicação e pacote do monorepo possui responsabilidade única e conta com
 | **`backend`** | API REST desenvolvida em FastAPI que carrega o modelo preditivo XGBoost em memória a partir do Hugging Face Hub e fornece inferência em tempo real via endpoint `POST /predict`. | `apps/backend/README.md` |
 | **`geocoding-api`** | Microsserviço FastAPI integrado a uma instância local do Nominatim/OpenStreetMap e cache em PostgreSQL, responsável pela resolução bidirecional entre endereços e coordenadas. | `apps/geocoding-api/README.md` |
 | **`ml-worker`** | Worker para execução offline do pipeline de ML. Executa limpeza de dados, Nested Cross-Validation, sintonia com Optuna e upload de artefatos serializados no Hugging Face Hub. | `apps/ml-worker/README.md` |
-| **`ingestion`** | Rotina semanal de coleta automatizada de anúncios imobiliários executada via GitHub Actions e armazenada em banco PostgreSQL remoto. | `apps/ingestion/` |
+| **`ingestion`** | Rotina diária de coleta automatizada de anúncios imobiliários executada via GitHub Actions, com deduplicação de imóveis físicos e armazenamento em banco PostgreSQL remoto. | `apps/ingestion/README.md` |
 | **`frontend`** | Aplicação web interativa para simulação e visualização de estimativas de imóveis construída com React, TypeScript, HTML e CSS. *(Em desenvolvimento)* | `apps/frontend/` |
 
 ### Pacotes Compartilhados (`packages/`)
@@ -95,6 +95,7 @@ Cada serviço e biblioteca do monorepo possui seu próprio `Taskfile.yml` com co
 task -d apps/backend test
 task -d apps/geocoding-api test
 task -d apps/ml-worker test
+task -d apps/ingestion test
 task -d packages/ml-core test
 task -d packages/geocoding-client test
 task -d packages/logging-config test
@@ -105,9 +106,10 @@ task -d apps/backend verify
 ```
 
 Para subir a infraestrutura completa de microsserviços conteinerizados, consulte as orientações específicas no README de cada aplicação:
-- Para a API de inferência: consulte [apps/backend/README.md](file:///home/gauloish/.dev/ds/projects/meu-ape/apps/backend/README.md).
-- Para a infraestrutura de geocodificação e mapas: consulte [apps/geocoding-api/README.md](file:///home/gauloish/.dev/ds/projects/meu-ape/apps/geocoding-api/README.md).
-- Para o pipeline de treinamento de modelos: consulte [apps/ml-worker/README.md](file:///home/gauloish/.dev/ds/projects/meu-ape/apps/ml-worker/README.md).
+- Para a API de inferência: consulte [apps/backend/README.md](apps/backend/README.md).
+- Para a infraestrutura de geocodificação e mapas: consulte [apps/geocoding-api/README.md](apps/geocoding-api/README.md).
+- Para o pipeline de treinamento de modelos: consulte [apps/ml-worker/README.md](apps/ml-worker/README.md).
+- Para a coleta diária de anúncios: consulte [apps/ingestion/README.md](apps/ingestion/README.md).
 
 ---
 

@@ -20,3 +20,5 @@ artifacts/
 
 # Pytest caches
 .pytest_cache
+# Ingestion local outputs
+apps/ingestion/data/

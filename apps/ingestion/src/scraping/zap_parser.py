@@ -5,11 +5,11 @@ retrieved from Zap Imóveis web pages into normalised dictionary records.
 """
 
 import re
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 
-def _extract_parking_spots(title: str) -> Optional[int]:
+def _extract_parking_spots(title: str) -> int | None:
     """Extract the count of parking spots from a listing title.
 
     Args:
@@ -22,7 +22,7 @@ def _extract_parking_spots(title: str) -> Optional[int]:
     return int(match.group(1)) if match else None
 
 
-def _extract_neighbourhood(title: str) -> Optional[str]:
+def _extract_neighbourhood(title: str) -> str | None:
     """Extract the neighbourhood name from a listing title.
 
     Args:
@@ -35,7 +35,7 @@ def _extract_neighbourhood(title: str) -> Optional[str]:
     return match.group(1).strip() if match else None
 
 
-def _extract_property_type(item: Dict[str, Any], title: str) -> Optional[str]:
+def _extract_property_type(item: dict[str, Any], title: str) -> str | None:
     """Derive property type from additionalType or listing title.
 
     Args:
@@ -58,7 +58,7 @@ def _join_photo_urls(images: Any) -> str:
     return str(images) if images else ""
 
 
-def _extract_condo_fee(offers: Dict[str, Any]) -> Optional[float]:
+def _extract_condo_fee(offers: dict[str, Any]) -> float | None:
     """Extract condominium fee from additional properties dict."""
     add_prop = offers.get("additionalProperty", {})
     if isinstance(add_prop, dict) and add_prop.get("name") == "Condominium Fee":
@@ -66,7 +66,7 @@ def _extract_condo_fee(offers: Dict[str, Any]) -> Optional[float]:
     return None
 
 
-def parse_item(item: Dict[str, Any]) -> Dict[str, Any]:
+def parse_item(item: dict[str, Any]) -> dict[str, Any]:
     """Normalise a raw JSON-LD listing object into a tabular dictionary.
 
     Args:
@@ -77,9 +77,15 @@ def parse_item(item: Dict[str, Any]) -> Dict[str, Any]:
         A dictionary containing normalised property fields ready for DataFrame
         export or CSV persistence.
     """
-    offers: Dict[str, Any] = item.get("offers", {}) if isinstance(item.get("offers"), dict) else {}
-    address: Dict[str, Any] = item.get("address", {}) if isinstance(item.get("address"), dict) else {}
-    floor_size: Dict[str, Any] = item.get("floorSize", {}) if isinstance(item.get("floorSize"), dict) else {}
+    offers: dict[str, Any] = (
+        item.get("offers", {}) if isinstance(item.get("offers"), dict) else {}
+    )
+    address: dict[str, Any] = (
+        item.get("address", {}) if isinstance(item.get("address"), dict) else {}
+    )
+    floor_size: dict[str, Any] = (
+        item.get("floorSize", {}) if isinstance(item.get("floorSize"), dict) else {}
+    )
 
     title: str = item.get("name", "") or ""
 
@@ -112,5 +118,5 @@ def parse_item(item: Dict[str, Any]) -> Dict[str, Any]:
         "descricao_completa": item.get("description"),
         "data_publicacao": item.get("datePublished"),
         "data_modificacao": item.get("dateModified"),
-        "scraped_at": datetime.now(timezone.utc).isoformat(),
+        "scraped_at": datetime.now(UTC).isoformat(),
     }

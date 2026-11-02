@@ -8,13 +8,13 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import Dict, List, Tuple
 
-from bs4 import BeautifulSoup
 import pandas as pd
+from bs4 import BeautifulSoup
 
 try:
     from curl_cffi import requests as cffi_requests
+
     HAS_CURL_CFFI = True
 except ImportError:
     HAS_CURL_CFFI = False
@@ -35,7 +35,7 @@ HEADERS = {
     "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
 }
 
-CATEGORIES: List[Tuple[str, str]] = [
+CATEGORIES: list[tuple[str, str]] = [
     ("Apartamentos", "apartamentos"),
     ("Casas", "casas"),
     ("Casas de Condomínio", "casas-de-condominio"),
@@ -78,7 +78,7 @@ def _fetch_count(session, url: str) -> int:
                 return 0
             if resp.status_code == 429:
                 time.sleep(3 * (attempt + 1))
-        except Exception:
+        except Exception:  # noqa: BLE001
             time.sleep(2)
     return 0
 
@@ -102,7 +102,7 @@ def validate_coverage(dataset_path: Path = DATASET_PATH) -> None:
     print(f"Local unique listings: {scraped_total}\n")
     print(f"{'Category':<25} | {'Official Count':>14} | {'Local Count':>11}")
 
-    counts: Dict[str, int] = {}
+    counts: dict[str, int] = {}
     for label, slug in CATEGORIES:
         url = f"{BASE_URL}/venda/{slug}/{CITY_SLUG}/"
         count = _fetch_count(session, url)
@@ -112,7 +112,7 @@ def validate_coverage(dataset_path: Path = DATASET_PATH) -> None:
 
     total_zap = _fetch_count(session, f"{BASE_URL}/venda/imoveis/{CITY_SLUG}/")
 
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"  Official total listings (Zap): {total_zap:>10,}")
     print(f"  Scraped unique listings:       {scraped_total:>10,}")
 
@@ -126,5 +126,7 @@ def validate_coverage(dataset_path: Path = DATASET_PATH) -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
     validate_coverage()
