@@ -1,4 +1,4 @@
-"""Suíte de testes unitários para o repositório de anúncios (ListingRepository)."""
+"""Suíte de testes unitários para o repositório de anúncios (ListingRepository) e histórico de preços."""
 
 from datetime import datetime
 from typing import Any
@@ -34,6 +34,10 @@ def test_add_many_inserts_and_converts_types(db_session: Session):
     assert listing.scraped_at is not None
     assert listing.scraped_at.year == 2026
 
+    history = repo.get_price_history("1")
+    assert len(history) == 1
+    assert history[0].preco == 650000.0
+
 
 def test_add_many_skips_existing_and_batch_duplicates(db_session: Session):
     """Valida que IDs já persistidos ou repetidos no lote não são inseridos novamente."""
@@ -46,6 +50,63 @@ def test_add_many_skips_existing_and_batch_duplicates(db_session: Session):
 
     assert inserted == 1
     assert repo.get_all_ids() == {"1", "2"}
+
+
+def test_add_many_deduplicates_by_url_and_tracks_price_history(db_session: Session):
+    """Valida deduplicação por URL canônica e gravação de histórico quando o preço muda."""
+    repo = ListingRepository(db_session)
+    repo.add_many(
+        [
+            make_record(
+                "100",
+                url="https://www.zapimoveis.com.br/imovel/apto-id-100/?src=1",
+                preco=500000.0,
+            )
+        ]
+    )
+
+    assert repo.get_all_urls() == {"https://www.zapimoveis.com.br/imovel/apto-id-100/"}
+    assert repo.get_existing_urls(
+        ["https://www.zapimoveis.com.br/imovel/apto-id-100/?p=2"]
+    ) == {"https://www.zapimoveis.com.br/imovel/apto-id-100/"}
+
+    # Novo lote com ID diferente mas mesma URL canônica e novo preço
+    inserted = repo.add_many(
+        [
+            make_record(
+                "999",
+                url="https://www.zapimoveis.com.br/imovel/apto-id-100/",
+                preco=535000.0,
+            )
+        ],
+        source="zap_scrape",
+    )
+
+    assert inserted == 0
+    listing = db_session.get(Listing, "100")
+    assert listing is not None
+    assert listing.preco == 535000.0
+
+    history = repo.get_price_history("100")
+    assert [h.preco for h in history] == [500000.0, 535000.0]
+
+
+def test_apply_price_index_updates_prices_and_records_history(db_session: Session):
+    """Valida a correção monetária pelo índice FipeZAP e o registro no histórico de preços."""
+    repo = ListingRepository(db_session)
+    repo.add_many([make_record("1", preco=100000.0), make_record("2", preco=200000.0)])
+
+    updated = repo.apply_price_index(factor=1.01, source="fipezap_index")
+
+    assert updated == 2
+    first = db_session.get(Listing, "1")
+    assert first is not None
+    assert first.preco == 101000.0
+
+    history = repo.get_price_history("1")
+    assert len(history) == 2
+    assert history[-1].preco == 101000.0
+    assert history[-1].fonte == "fipezap_index"
 
 
 def test_add_many_accepts_listing_id_key(db_session: Session):

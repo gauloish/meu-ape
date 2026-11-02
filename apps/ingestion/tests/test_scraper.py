@@ -1,17 +1,22 @@
-"""Suíte de testes unitários para a orquestração dos scrapers do Zap Imóveis."""
+"""Suíte de testes unitários para a orquestração dos scrapers (async, sync e Scrapy)."""
 
 import asyncio
 import json
 from datetime import date
 from pathlib import Path
 
+import scrapy
+from scrapy.http import HtmlResponse, Request
+
 from src.data.checkpoint import CheckpointStore
 from src.scraping import zap_scraper_async, zap_scraper_sync
 from src.scraping.http_client import AsyncHttpClient
+from src.scraping.scrapy_spider import ZapListingSpider
 from src.scraping.zap_scraper_async import (
     _listing_matches_date,
     build_search_url,
     extract_listings_from_html,
+    make_partition_key,
     scrape_partition,
 )
 
@@ -21,7 +26,14 @@ def _html_page(*listing_ids: str) -> str:
     payload = {
         "@type": "ItemList",
         "itemListElement": [
-            {"item": {"@id": lid, "name": f"Imóvel {lid}"}} for lid in listing_ids
+            {
+                "item": {
+                    "@id": lid,
+                    "name": f"Imóvel {lid}",
+                    "url": f"https://www.zapimoveis.com.br/imovel/{lid}/",
+                }
+            }
+            for lid in listing_ids
         ],
     }
     return (
@@ -145,6 +157,33 @@ def test_scrape_partition_stops_when_page_is_fully_known(workdir: Path, monkeypa
     assert store.seen_ids == {"1"}
 
 
+def test_scrape_partition_resumes_from_recorded_page(workdir: Path, monkeypatch):
+    """Valida que a paginação retoma a partir da última página processada no checkpoint."""
+    monkeypatch.setattr(zap_scraper_async.asyncio, "sleep", _no_sleep)
+    client = FakeAsyncClient(
+        {1: _html_page("1"), 2: _html_page("2"), 3: _html_page("3")}
+    )
+    store = CheckpointStore(output_path=workdir / "out.csv", buffer_size=100)
+    pkey = make_partition_key("venda/casas/go+goiania", None, None)
+    store.record_progress(pkey, page=2, completed=False)
+
+    asyncio.run(
+        scrape_partition(
+            client,
+            store,
+            asyncio.Lock(),
+            "venda/casas/go+goiania",
+            None,
+            None,
+            max_pages=3,
+        )
+    )
+
+    assert len(client.requested) == 1
+    assert "pagina=3" in client.requested[0]
+    assert store.is_partition_completed(pkey)
+
+
 def test_scrape_partition_respects_max_pages(workdir: Path, monkeypatch):
     """Valida o limite de páginas por partição."""
     monkeypatch.setattr(zap_scraper_async.asyncio, "sleep", _no_sleep)
@@ -164,3 +203,50 @@ def test_scrape_partition_respects_max_pages(workdir: Path, monkeypatch):
     )
 
     assert len(client.requested) == 3
+
+
+def test_scrapy_spider_parses_pages_and_records_blocks(workdir: Path):
+    """Valida que o spider Scrapy extrai itens JSON-LD, agenda próxima página e registra bloqueios 403."""
+    store = CheckpointStore(output_path=workdir / "scrapy.csv", buffer_size=10)
+    spider = ZapListingSpider(
+        store=store,
+        categories=["casas"],
+        price_ranges=[(0, 100_000)],
+        max_pages=2,
+    )
+
+    initial_reqs = list(spider.start_requests())
+    assert len(initial_reqs) == 1
+    first_req = initial_reqs[0]
+    assert "pagina=1" in first_req.url
+
+    resp1 = HtmlResponse(
+        url=first_req.url,
+        status=200,
+        body=_html_page("101"),
+        encoding="utf-8",
+        request=first_req,
+    )
+    outputs = list(spider.parse_search_page(resp1))
+    items = [o for o in outputs if isinstance(o, dict)]
+    next_reqs = [o for o in outputs if isinstance(o, scrapy.Request)]
+
+    assert len(items) == 1
+    assert items[0]["id"] == "101"
+    assert len(next_reqs) == 1
+    assert "pagina=2" in next_reqs[0].url
+
+    # Simula bloqueio WAF HTTP 403 na página 2
+    block_req = Request(url=next_reqs[0].url, meta=next_reqs[0].meta)
+    resp_blocked = HtmlResponse(
+        url=block_req.url,
+        status=403,
+        body="<html><title>Just a moment...</title></html>",
+        encoding="utf-8",
+        request=block_req,
+    )
+    blocked_outputs = list(spider.parse_search_page(resp_blocked))
+    assert blocked_outputs == []
+    assert len(spider.blocked_events) == 1
+    assert spider.blocked_events[0]["status"] == 403
+    assert spider.blocked_events[0]["is_waf_challenge"] is True

@@ -1,119 +1,80 @@
-# Ingestion — Coleta Diária de Anúncios do Zap Imóveis
+# Ingestion — Módulo de Ingestão, Histórico de Preços e Sincronização com PostgreSQL
 
-Aplicação de linha de comando responsável por coletar anúncios de venda de imóveis em Goiânia (GO) no portal Zap Imóveis, remover duplicatas do mesmo imóvel físico e sincronizar os novos registros com o banco PostgreSQL remoto.
+Aplicação de linha de comando responsável pela ingestão de dados de imóveis residenciais e comerciais em Goiânia (GO), deduplicação em três níveis (ID, URL canônica e assinatura física do imóvel), controle de retomada de execução por partição/página, rastreamento de histórico de preços (`listing_price_history`) e atualização monetária pelo índice público **FipeZAP** no PostgreSQL.
 
 ---
 
-## Visão Geral
+## Análise Técnica e Limitações de Acesso
 
-A ingestion alimenta a base de dados usada pelo restante do projeto Meu Apê. Suas principais responsabilidades são:
+### 1. Recursos e Endpoints Públicos Identificados
+- **Páginas SSR de Busca Pública**: `https://www.zapimoveis.com.br/{transacao}/{categoria}/{uf}+{cidade}/?pagina={N}&preco-de={min}&preco-ate={max}`
+- **Arquivos de Governança e Indexação**: `robots.txt` e sitemaps XML públicos voltados para motores de busca autorizados.
+- **Séries Públicas Agregadas**: Relatórios mensais do **Índice FipeZAP (Venda Residencial — Goiânia)** publicados pela Fipe/DataZAP+.
 
-- Percorrer as buscas do portal particionadas por categoria de imóvel e faixa de preço, mantendo cada partição abaixo do limite de páginas do site.
-- Extrair os anúncios dos blocos estruturados JSON-LD das páginas e normalizá-los em registros tabulares.
-- Simular um navegador real (impersonação TLS do Chrome via `curl_cffi`), com aquecimento de sessão e backoff para respostas `429` e `403`.
-- Salvar o progresso em CSV de forma incremental (checkpoint), permitindo retomar coletas interrompidas.
-- Identificar anúncios de imobiliárias diferentes que se referem ao mesmo imóvel e manter apenas o registro mais completo.
-- Persistir apenas anúncios inéditos na tabela `listings` via SQLAlchemy.
+### 2. Estrutura do HTML e Dados Estruturados (`JSON-LD`)
+Quando uma página pública responde com HTTP `200 OK`, o HTML inclui blocos `<script type="application/ld+json">` padronizados pelo vocabulário `schema.org`:
+- Bloco `@type: "ItemList"` contendo `itemListElement`, onde cada elemento traz um objeto `item` com `@id`, `name`, `additionalType` (`Apartment`, `House`, `SingleFamilyResidence`), `url`, `offers` (`price`, `priceCurrency`, `additionalProperty` para taxa de condomínio), `address`, `floorSize`, `numberOfBedrooms`/`numberOfRooms`, `numberOfBathroomsTotal`, `petsAllowed`, `amenityFeature`, `image`, `description`, `datePublished` e `dateModified`.
+- Tag `<h1>` com o total agregado de anúncios da categoria pesquisada.
+
+### 3. Verificação de API ou Feed Autorizado
+- Não há API REST aberta para extração em massa do catálogo de anúncios por terceiros.
+- O formato XML do ecossistema Grupo ZAP / CanalPro é um protocolo de **carga (inbound)** utilizado por imobiliárias para publicar seus próprios imóveis, e o **DataZAP+** é comercializado sob licenciamento B2B.
+- A fonte pública legítima disponibilizada mensalmente pelo próprio grupo é o **Índice FipeZAP**, integrado em `src/data/price_index.py`.
+
+### 4. Etapa Exata em que Ocorre o Bloqueio
+- O bloqueio ocorre na **Camada 1 — Transporte HTTP / Edge WAF (Cloudflare)** (`SyncHttpClient.get`, `AsyncHttpClient.get` e `ZapListingSpider.parse_search_page`), **antes** da extração de HTML/JSON-LD (`extract_listings_from_html`).
+- Requisições originadas de IPs de datacenter (como runners do GitHub Actions) ou paginações sequenciais recebem **HTTP `403 Forbidden`** (página de challenge WAF sem JSON-LD `ItemList`) ou **HTTP `429 Too Many Requests`**.
+
+### 5. Limitações Técnicas vs. Restrições Contratuais
+- **Limitações Técnicas**: Teto de paginação por consulta (~50 páginas), bloqueio por reputação de ASN/IP em nuvem e rate-limiting ativo na borda (HTTP 403/429).
+- **Restrições Contratuais**: Os Termos de Uso do portal vedam coleta automatizada sem autorização prévia e proíbem contornar dispositivos técnicos de controle de acesso. Por esse motivo, este módulo **não implementa** evasão de CAPTCHA, falsificação de TLS fingerprint ou burla de controles anti-bot, operando com fallback automático para a base consolidada de Goiânia (compatível com os 9.267 anúncios) e correção pelo índice público FipeZAP.
 
 ---
 
 ## Arquitetura da Aplicação
 
-### Organização dos Módulos
-
 ```
 apps/ingestion/
-├── main.py                      # Ponto de entrada da CLI
+├── main.py                        # Ponto de entrada da CLI
 ├── src/
-│   ├── cli/main.py              # Definição dos subcomandos (argparse)
+│   ├── cli/main.py                # Definição dos subcomandos (argparse)
 │   ├── scraping/
-│   │   ├── config.py            # URL base, categorias, faixas de preço e cabeçalhos
-│   │   ├── http_client.py       # Clientes HTTP síncrono e assíncrono com retentativas
-│   │   ├── zap_parser.py        # Normalização dos itens JSON-LD em registros
-│   │   ├── zap_scraper_async.py # Coleta assíncrona (usada na rotina diária)
-│   │   └── zap_scraper_sync.py  # Coleta síncrona multi-thread
+│   │   ├── config.py              # URL base, categorias, faixas de preço e cabeçalhos
+│   │   ├── http_client.py         # Clientes HTTP síncrono e assíncrono com diagnóstico de bloqueio
+│   │   ├── zap_parser.py          # Normalização JSON-LD, URL canônica e inspeção de HTML
+│   │   ├── zap_scraper_async.py   # Orquestrador assíncrono com retomada por partição/página
+│   │   ├── zap_scraper_sync.py    # Orquestrador síncrono multi-thread com retomada
+│   │   └── scrapy_spider.py       # Spider Scrapy obedecendo robots.txt e AutoThrottle
 │   ├── data/
-│   │   ├── checkpoint.py        # Persistência incremental em CSV com deduplicação por ID
-│   │   ├── deduplicator.py      # Deduplicação por assinatura do imóvel físico
-│   │   └── validator.py         # Comparação de cobertura com os totais do portal
-│   ├── database/                # Engine, sessão, modelo `Listing` e `ListingRepository`
+│   │   ├── checkpoint.py          # Checkpoint incremental em CSV + estado JSON de partições
+│   │   ├── deduplicator.py        # Deduplicação por ID, URL canônica e assinatura física
+│   │   ├── price_index.py         # Índice FipeZAP Goiânia e resolução de fallback local
+│   │   └── validator.py           # Comparação de cobertura com os totais do portal
+│   ├── database/
+│   │   ├── models.py              # Modelos ORM `Listing` e `ListingPriceHistory`
+│   │   ├── repositories.py        # Persistência, deduplicação por ID/URL e histórico de preços
+│   │   ├── engine.py              # Configuração SQLAlchemy (PostgreSQL / SQLite fallback)
+│   │   └── session.py             # Fábrica de sessões SQLAlchemy
 │   └── pipeline/
-│       ├── daily_scrape.py      # Orquestração da rotina diária
-│       └── load_csv.py          # Carga em lote de um CSV existente
-├── tests/                       # Suíte de testes unitários (sem rede e sem banco real)
-└── Taskfile.yml                 # Automação de comandos de execução e testes
+│       ├── daily_scrape.py        # Orquestração diária com fallback local e FipeZAP
+│       └── load_csv.py            # Carga em lote de CSV existente
+├── tests/                         # Suíte de testes unitários
+└── Taskfile.yml                   # Automação de comandos de execução e testes
 ```
 
-### Fluxo da Rotina Diária (`daily-scrape`)
-
-1. **IDs conhecidos**: carrega do banco todos os `listing_id` já persistidos. Se o banco estiver indisponível, segue sem esse filtro.
-2. **Coleta**: percorre cada partição (categoria × faixa de preço) até `--max-pages` páginas. A paginação de uma partição é interrompida quando uma página (a partir da segunda) contém apenas anúncios já conhecidos. O resultado é salvo em `data/raw/zap_daily_AAAAMMDD.csv`.
-3. **Deduplicação física**: gera `data/processed/zap_daily_AAAAMMDD_dedup.csv`, mantendo por assinatura (rua + área + quartos + preço, ou bairro + tipo + atributos quando não há rua) o anúncio com mais informações.
-4. **Persistência**: insere no banco apenas os IDs ainda inexistentes. Com `--dry-run`, esta etapa é ignorada.
-
-Os caminhos `data/` são relativos ao diretório de execução (por padrão, `apps/ingestion/`).
-
 ---
 
-## Configuração e Requisitos
-
-### Requisitos de Software
-
-- Python `>=3.12`
-- Gerenciador de pacotes `uv`
-- Ferramenta de automação de tarefas `task` (Taskfile)
-
-### Variáveis de Ambiente
-
-As configurações são definidas no arquivo `.env` dentro de `apps/ingestion/` ou via variáveis de ambiente:
-
-| Variável | Tipo | Padrão | Descrição |
-| :--- | :--- | :--- | :--- |
-| `DATABASE_URL` | `str \| None` | `None` | URL de conexão do PostgreSQL. Os esquemas `postgres://` e `postgresql://` são convertidos automaticamente para `postgresql+psycopg://`. Sem ela, é usado um SQLite local em `artifacts/geocoder/cache/geocoding.db`. |
-
----
-
-## Execução e Testes com Taskfile
-
-Os comandos podem ser executados a partir da raiz do monorepo (com `-d apps/ingestion`) ou diretamente dentro da pasta `apps/ingestion`:
-
-### Coleta e Carga de Dados
+## Comandos Disponíveis (`Taskfile`)
 
 | Comando | Descrição |
 | :--- | :--- |
-| `task -d apps/ingestion daily` | Executa a rotina diária completa (coleta, deduplicação e gravação no banco) |
-| `task -d apps/ingestion daily-dry` | Executa a rotina diária sem gravar no banco |
-| `task -d apps/ingestion scrape` | Executa a coleta completa assíncrona de todas as partições |
-| `task -d apps/ingestion deduplicate` | Remove duplicatas físicas de `data/raw/zap_dataset.csv` |
-| `task -d apps/ingestion load-csv` | Carrega um CSV existente no banco (caminho via `INPUT=...`) |
-| `task -d apps/ingestion validate` | Compara a cobertura do dataset local com os totais do portal |
-
-As tarefas `daily`, `daily-dry` e `scrape` aceitam `CONCURRENCY` (padrão `1`), e as duas primeiras também `MAX_PAGES` (padrão `10`):
-
-```bash
-CONCURRENCY=2 MAX_PAGES=5 task -d apps/ingestion daily-dry
-```
-
-Para carregar o dataset histórico versionado na raiz do repositório:
-
-```bash
-INPUT=../../data/processed/zap_dataset_deduplicated.csv task -d apps/ingestion load-csv
-```
-
-A CLI também pode ser usada diretamente: `uv run python main.py --help`.
-
-### Testes e Qualidade de Código
-
-| Comando | Descrição |
-| :--- | :--- |
-| `task -d apps/ingestion test` | Executa a suíte de testes unitários com `pytest` via `uv` |
-| `task -d apps/ingestion test-cov` | Executa os testes com relatório de cobertura de código (`pytest-cov`) |
-| `task -d apps/ingestion lint` | Executa a verificação estática de código com o `ruff` |
-| `task -d apps/ingestion format` | Verifica a formatação do código com o `ruff` |
-| `task -d apps/ingestion verify` | Executa a checagem de tipos estáticos com o `ty` |
-
----
-
-## Execução Agendada (GitHub Actions)
-
-O workflow [`.github/workflows/daily_scrape.yml`](../../.github/workflows/daily_scrape.yml) executa `daily-scrape` todos os dias às 09:00 UTC (06:00 BRT), e também pode ser disparado manualmente (`workflow_dispatch`). A URL do banco é lida do secret `DATABASE_URL` do repositório.
+| `task -d apps/ingestion daily` | Executa o pipeline diário (com fallback local caso haja bloqueio HTTP 403/429) |
+| `task -d apps/ingestion daily-dry` | Executa o pipeline diário em modo simulação (`--dry-run`) |
+| `task -d apps/ingestion scrape` | Executa a coleta assíncrona com retomada de execução |
+| `task -d apps/ingestion scrape-scrapy` | Executa o spider Scrapy respeitando `robots.txt` |
+| `task -d apps/ingestion apply-index` | Atualiza os preços no banco pelo índice FipeZAP Goiânia e grava histórico |
+| `task -d apps/ingestion deduplicate` | Remove duplicatas por ID, URL e assinatura física do imóvel |
+| `task -d apps/ingestion load-csv` | Carrega um CSV existente no PostgreSQL (`INPUT=...`) |
+| `task -d apps/ingestion test` | Executa a suíte de testes unitários com `pytest` |
+| `task -d apps/ingestion lint` | Executa a verificação estática com `ruff` |
+| `task -d apps/ingestion verify` | Executa a checagem de tipos com `ty` |

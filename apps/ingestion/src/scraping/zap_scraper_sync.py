@@ -1,7 +1,8 @@
 """Synchronous Zap Imóveis scraper orchestration module.
 
 Orchestrates multi-threaded pagination and partitioning over property categories and
-price ranges, delegating HTTP fetching to SyncHttpClient and item parsing to zap_parser.
+price ranges, delegating HTTP fetching to SyncHttpClient, item parsing to zap_parser,
+and checkpointing/resumption to CheckpointStore.
 """
 
 import json
@@ -105,17 +106,28 @@ def scrape_partition(
         delay_range: Tuple of minimum and maximum delay in seconds between requests.
     """
     label = search_path.split("/")[-1]
+    partition_key = f"{search_path.strip('/')}:{price_min}:{price_max}"
 
-    for page in range(1, MAX_PAGES_PER_PARTITION + 1):
+    with lock:
+        if store.is_partition_completed(partition_key):
+            return
+        start_page = store.get_resume_page(partition_key)
+
+    for page in range(start_page, MAX_PAGES_PER_PARTITION + 1):
         url = build_search_url(search_path, page, price_min, price_max)
         html = client.get(url)
         listings = extract_listings_from_html(html)
 
         if not listings:
+            with lock:
+                store.record_progress(partition_key, page, completed=True)
             break
 
         with lock:
             new_count = store.add_many(listings)
+            store.record_progress(
+                partition_key, page, completed=(page >= MAX_PAGES_PER_PARTITION)
+            )
             if store.buffer_full:
                 store.flush_sync()
 

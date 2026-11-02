@@ -1,7 +1,8 @@
 """HTTP client abstraction for the Zap Imóveis scraping pipeline.
 
-Provides synchronous and asynchronous clients featuring browser impersonation (curl_cffi),
-initial session warming (cookie acquisition), and rate-limiting backoff mechanisms.
+Provides synchronous and asynchronous HTTP clients with standard headers,
+rate-limiting backoff mechanisms, and diagnostic tracking of HTTP 403/429
+access blocks without anti-bot or TLS fingerprint evasion.
 """
 
 import asyncio
@@ -26,16 +27,25 @@ logger = logging.getLogger(__name__)
 
 
 class SyncHttpClient:
-    """Thread-safe synchronous HTTP client with TLS fingerprint impersonation.
+    """Thread-safe synchronous HTTP client with retry and block diagnostics.
 
-    Handles automatic exponential backoff for HTTP 429 status codes.
+    Handles exponential backoff for HTTP 429 status codes and records
+    transport-layer HTTP 403/429 blocks.
     """
 
     MAX_RETRIES = 3
 
     def __init__(self) -> None:
         """Initialize the synchronous HTTP client session."""
+        self.last_status_code: int | None = None
+        self.blocked_count: int = 0
+        self.rate_limited_count: int = 0
         self._session = self._build_session()
+
+    @property
+    def is_blocked(self) -> bool:
+        """Return True if the last HTTP response was blocked (403 or 429)."""
+        return self.last_status_code in (403, 429)
 
     def get(self, url: str) -> str:
         """Fetch content from the target URL.
@@ -56,16 +66,19 @@ class SyncHttpClient:
                 else:
                     resp = stdlib_requests.get(url, headers=DEFAULT_HEADERS, timeout=12)
 
+                self.last_status_code = resp.status_code
+
                 if resp.status_code == 200:
                     return resp.text
                 if resp.status_code in (404, 410):
                     return ""
                 if resp.status_code == 429:
+                    self.rate_limited_count += 1
                     wait = min(
                         45.0, 8.0 * (1.5 ** (attempt - 1)) + random.uniform(1.0, 3.0)
                     )
                     logger.warning(
-                        "HTTP 429 for %s - waiting %.1fs (attempt %d/%d).",
+                        "[HTTP Transport Block] HTTP 429 Rate Limit for %s - waiting %.1fs (attempt %d/%d).",
                         url,
                         wait,
                         attempt,
@@ -75,8 +88,9 @@ class SyncHttpClient:
                     continue
 
                 if resp.status_code == 403:
+                    self.blocked_count += 1
                     logger.warning(
-                        "HTTP 403 Forbidden for %s (attempt %d/%d) - resetting session.",
+                        "[HTTP Transport Block] HTTP 403 Forbidden (WAF/Edge) for %s (attempt %d/%d).",
                         url,
                         attempt,
                         self.MAX_RETRIES,
@@ -112,17 +126,19 @@ class SyncHttpClient:
         return ""
 
     def _build_session(self):
-        """Construct a curl_cffi session or fall back to standard requests."""
+        """Construct a standard HTTP session without fingerprint spoofing."""
         if HAS_CURL_CFFI:
-            return cffi_requests.Session(impersonate="chrome124")
-        return stdlib_requests.Session()
+            return cffi_requests.Session(headers=DEFAULT_HEADERS)
+        session = stdlib_requests.Session()
+        session.headers.update(DEFAULT_HEADERS)
+        return session
 
 
 class AsyncHttpClient:
     """Asynchronous HTTP client supporting concurrency control via Semaphore.
 
-    Uses native Chrome 124 browser impersonation via curl_cffi with session warming
-    (obtaining valid Cloudflare/navigation cookies on homepage first).
+    Uses standard HTTP sessions without anti-bot or TLS fingerprint spoofing
+    and tracks transport-layer HTTP 403/429 responses.
     """
 
     MAX_RETRIES = 3
@@ -137,10 +153,18 @@ class AsyncHttpClient:
         self._session: AsyncSession | None = None
         self._lock = asyncio.Lock()
         self._warmed = False
+        self.last_status_code: int | None = None
+        self.blocked_count: int = 0
+        self.rate_limited_count: int = 0
+
+    @property
+    def is_blocked(self) -> bool:
+        """Return True if the last HTTP response was blocked (403 or 429)."""
+        return self.last_status_code in (403, 429)
 
     async def __aenter__(self) -> Self:
-        """Enter the async context manager, instantiate AsyncSession and warm cookies."""
-        self._session = AsyncSession(impersonate="chrome124")
+        """Enter the async context manager and instantiate AsyncSession."""
+        self._session = AsyncSession(headers=DEFAULT_HEADERS)
         await self._warmup_session()
         return self
 
@@ -153,30 +177,40 @@ class AsyncHttpClient:
                 pass
 
     async def _warmup_session(self) -> None:
-        """Visit homepage to acquire initial navigation cookies and pass Cloudflare checks."""
+        """Perform an initial connectivity check against BASE_URL."""
         if not self._session:
             return
         try:
-            headers = {"Referer": "https://www.google.com/"}
-            resp = await self._session.get(BASE_URL, headers=headers, timeout=15)
+            resp = await self._session.get(
+                BASE_URL, headers=DEFAULT_HEADERS, timeout=15
+            )
+            self.last_status_code = resp.status_code
             if resp.status_code == 200:
                 self._warmed = True
                 logger.debug(
-                    "Session warmed up successfully with %d cookies.",
+                    "Session connectivity verified with %d cookies.",
                     len(self._session.cookies),
                 )
+            elif resp.status_code in (403, 429):
+                self.blocked_count += int(resp.status_code == 403)
+                self.rate_limited_count += int(resp.status_code == 429)
+                logger.warning(
+                    "[HTTP Transport Block] Initial request to %s blocked with HTTP %d.",
+                    BASE_URL,
+                    resp.status_code,
+                )
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Session warmup failed: %s", exc)
+            logger.warning("Session connectivity check failed: %s", exc)
 
     async def _reset_session(self) -> None:
-        """Close existing session and recreate a fresh warmed AsyncSession."""
+        """Close existing session and recreate a fresh AsyncSession."""
         async with self._lock:
             if self._session:
                 try:
                     await self._session.close()
                 except Exception:  # noqa: BLE001, S110
                     pass
-            self._session = AsyncSession(impersonate="chrome124")
+            self._session = AsyncSession(headers=DEFAULT_HEADERS)
             await self._warmup_session()
 
     async def get(self, url: str, label: str = "") -> str:
@@ -193,25 +227,27 @@ class AsyncHttpClient:
             await asyncio.sleep(random.uniform(1.2, 2.8))
 
             for attempt in range(1, self.MAX_RETRIES + 1):
-                headers = {"Referer": f"{BASE_URL}/"}
-
                 try:
                     assert self._session is not None, (
                         "AsyncHttpClient must be used as async context manager"
                     )
-                    resp = await self._session.get(url, headers=headers, timeout=15)
+                    resp = await self._session.get(
+                        url, headers=DEFAULT_HEADERS, timeout=15
+                    )
+                    self.last_status_code = resp.status_code
 
                     if resp.status_code == 200:
                         return resp.text
                     if resp.status_code in (404, 410):
                         return ""
                     if resp.status_code == 429:
+                        self.rate_limited_count += 1
                         wait = min(
                             30.0,
                             5.0 * (1.5 ** (attempt - 1)) + random.uniform(1.0, 2.0),
                         )
                         logger.warning(
-                            "[%s] HTTP 429 Rate Limit (attempt #%d/%d). Waiting %.1fs.",
+                            "[%s] [HTTP Transport Block] HTTP 429 Rate Limit (attempt #%d/%d). Waiting %.1fs.",
                             label,
                             attempt,
                             self.MAX_RETRIES,
@@ -220,8 +256,9 @@ class AsyncHttpClient:
                         await asyncio.sleep(wait)
                         continue
                     if resp.status_code == 403:
+                        self.blocked_count += 1
                         logger.warning(
-                            "[%s] HTTP 403 Forbidden (attempt #%d/%d). Resetting session with warmup.",
+                            "[%s] [HTTP Transport Block] HTTP 403 Forbidden (attempt #%d/%d). Resetting session.",
                             label,
                             attempt,
                             self.MAX_RETRIES,

@@ -8,6 +8,9 @@ from src.scraping.zap_parser import (
     _extract_parking_spots,
     _extract_property_type,
     _join_photo_urls,
+    extract_id_from_url,
+    inspect_html_structure,
+    normalize_url,
     parse_item,
 )
 
@@ -83,6 +86,55 @@ def test_parse_item_falls_back_to_number_of_rooms():
     """Valida o uso de numberOfRooms quando numberOfBedrooms está ausente."""
     record = parse_item({"numberOfRooms": 4})
     assert record["quartos"] == 4
+
+
+def test_parse_item_recovers_id_from_url_when_missing():
+    """Valida a recuperação do identificador a partir da URL quando @id está ausente."""
+    record = parse_item(
+        {
+            "url": "https://www.zapimoveis.com.br/imovel/venda-apartamento-setor-marista-goiania-id-2900855395/?fonte=ranking"
+        }
+    )
+    assert record["id"] == "2900855395"
+    assert (
+        record["url"]
+        == "https://www.zapimoveis.com.br/imovel/venda-apartamento-setor-marista-goiania-id-2900855395/"
+    )
+
+
+def test_normalize_url_and_extract_id():
+    """Valida a normalização canônica de URLs e extração de ID."""
+    raw = "HTTPS://WWW.ZAPIMOVEIS.COM.BR/imovel/apto-id-2900855395?pagina=1#topo"
+    norm = normalize_url(raw)
+    assert norm == "https://www.zapimoveis.com.br/imovel/apto-id-2900855395/"
+    assert extract_id_from_url(norm) == "2900855395"
+    assert (
+        extract_id_from_url("https://www.zapimoveis.com.br/imovel/2771234567/")
+        == "2771234567"
+    )
+    assert normalize_url(None) is None
+    assert normalize_url("   ") is None
+    assert extract_id_from_url(None) is None
+
+
+def test_inspect_html_structure_detects_json_ld_and_waf():
+    """Valida o diagnóstico estrutural de páginas públicas e bloqueios WAF."""
+    html = (
+        "<html><head>"
+        '<script type="application/ld+json">'
+        '{"@type": "ItemList", "itemListElement": [{"item": {"@id": "1"}}]}'
+        "</script>"
+        "</head><body><h1>9.267 imóveis à venda em Goiânia</h1></body></html>"
+    )
+    info = inspect_html_structure(html)
+    assert info["json_ld_types"] == ["ItemList"]
+    assert info["item_list_count"] == 1
+    assert info["h1_total_count"] == 9267
+    assert info["is_waf_challenge"] is False
+
+    waf_html = "<html><title>Just a moment...</title><div class='cf-browser-verification'></div></html>"
+    waf_info = inspect_html_structure(waf_html)
+    assert waf_info["is_waf_challenge"] is True
 
 
 def test_extract_parking_spots():

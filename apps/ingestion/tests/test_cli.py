@@ -44,3 +44,17 @@ def test_main_dispatches_load_csv(monkeypatch: pytest.MonkeyPatch, tmp_path):
     cli.main(["load-csv", "--input", str(tmp_path / "a.csv"), "--chunk-size", "10"])
 
     fake_loader.assert_called_once_with(csv_file=tmp_path / "a.csv", chunk_size=10)
+
+
+def test_main_dispatches_apply_index(monkeypatch: pytest.MonkeyPatch):
+    """Valida que o subcomando apply-index repassa os argumentos de correção FipeZAP."""
+    fake_index = MagicMock(return_value=10)
+    monkeypatch.setattr("src.pipeline.daily_scrape.run_fipezap_update", fake_index)
+
+    cli.main(
+        ["apply-index", "--months", "2026-02,2026-03", "--rate", "0.85", "--dry-run"]
+    )
+
+    fake_index.assert_called_once_with(
+        months=["2026-02", "2026-03"], custom_rate_pct=0.85, dry_run=True
+    )

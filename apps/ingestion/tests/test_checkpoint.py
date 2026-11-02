@@ -22,6 +22,44 @@ def test_add_many_ignores_duplicates_and_missing_ids(tmp_path: Path):
     assert store.is_new("3")
 
 
+def test_add_many_deduplicates_by_canonical_url(tmp_path: Path):
+    """Valida que anúncios com a mesma URL canônica (mesmo com IDs distintos) são deduplicados."""
+    store = CheckpointStore(output_path=tmp_path / "out.csv", buffer_size=10)
+
+    added = store.add_many(
+        [
+            {"id": "1", "url": "https://www.zapimoveis.com.br/imovel/apto-id-1/?src=a"},
+            {"id": "99", "url": "https://www.zapimoveis.com.br/imovel/apto-id-1/"},
+            {"url": "https://www.zapimoveis.com.br/imovel/casa-id-250/"},
+        ]
+    )
+
+    assert added == 2
+    assert store.seen_ids == {"1", "250"}
+    assert not store.is_new_url("https://www.zapimoveis.com.br/imovel/apto-id-1/")
+    assert store.is_new_url("https://www.zapimoveis.com.br/imovel/outro-id-999/")
+
+
+def test_partition_progress_persistence_and_resumption(tmp_path: Path):
+    """Valida a persistência e retomada do estado de paginação por partição."""
+    output = tmp_path / "out.csv"
+    store = CheckpointStore(output_path=output, buffer_size=10)
+
+    assert store.get_resume_page("venda/casas/go+goiania:0:100000") == 1
+    assert not store.is_partition_completed("venda/casas/go+goiania:0:100000")
+
+    store.record_progress("venda/casas/go+goiania:0:100000", page=4, completed=False)
+    store.record_progress(
+        "venda/apartamentos/go+goiania:0:100000", page=10, completed=True
+    )
+    store.flush_sync()
+
+    resumed = CheckpointStore(output_path=output, buffer_size=10)
+    assert resumed.get_resume_page("venda/casas/go+goiania:0:100000") == 5
+    assert not resumed.is_partition_completed("venda/casas/go+goiania:0:100000")
+    assert resumed.is_partition_completed("venda/apartamentos/go+goiania:0:100000")
+
+
 def test_buffer_full(tmp_path: Path):
     """Valida o sinalizador de buffer cheio."""
     store = CheckpointStore(output_path=tmp_path / "out.csv", buffer_size=2)
@@ -61,13 +99,23 @@ def test_flush_async_respects_force_flag(tmp_path: Path):
 
 
 def test_resumes_ids_from_existing_file(tmp_path: Path):
-    """Valida a retomada dos IDs já gravados em uma execução anterior."""
+    """Valida a retomada dos IDs e URLs já gravados em uma execução anterior."""
     output = tmp_path / "out.csv"
-    pd.DataFrame({"id": [10, 20], "preco": [1, 2]}).to_csv(output, index=False)
+    pd.DataFrame(
+        {
+            "id": [10, 20],
+            "url": [
+                "https://www.zapimoveis.com.br/imovel/10/",
+                "https://www.zapimoveis.com.br/imovel/20/",
+            ],
+            "preco": [1, 2],
+        }
+    ).to_csv(output, index=False)
 
     store = CheckpointStore(output_path=output)
 
     assert store.seen_ids == {"10", "20"}
+    assert "https://www.zapimoveis.com.br/imovel/10/" in store.seen_urls
     assert store.add_many([{"id": "10"}, {"id": "30"}]) == 1
 
 

@@ -1,4 +1,4 @@
-"""Suíte de testes unitários para os pipelines de coleta diária e carga em lote."""
+"""Suíte de testes unitários para os pipelines de coleta diária, fallback local e carga em lote."""
 
 from pathlib import Path
 
@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from sqlalchemy.orm import Session, sessionmaker
 
-from src.database import ListingRepository
+from src.database import Listing, ListingRepository
 from src.pipeline import daily_scrape, load_csv
 from tests.conftest import make_record
 
@@ -76,12 +76,51 @@ def test_daily_pipeline_dry_run_does_not_write(workdir: Path, patched_db, monkey
 def test_daily_pipeline_exits_when_nothing_scraped(
     workdir: Path, patched_db, monkeypatch
 ):
-    """Valida a saída antecipada quando a coleta não produz arquivo."""
+    """Valida a saída antecipada quando a coleta não produz arquivo e não há fallback."""
     monkeypatch.setattr(daily_scrape, "scrape_full_async", _fake_scraper([], []))
 
     daily_scrape.run_daily_pipeline()
 
     assert not (workdir / "data" / "processed").exists()
+
+
+def test_daily_pipeline_uses_local_fallback_and_fipezap_when_blocked(
+    workdir: Path, patched_db, monkeypatch
+):
+    """Valida que o pipeline usa o CSV local e aplica FipeZAP quando a coleta ao vivo é bloqueada."""
+    monkeypatch.setattr(daily_scrape, "scrape_full_async", _fake_scraper([], []))
+
+    fallback = workdir / "goiania_base.csv"
+    pd.DataFrame([make_record("2900855395", preco=1000000.0)]).to_csv(
+        fallback, index=False
+    )
+
+    daily_scrape.run_daily_pipeline(fallback_csv=fallback, apply_fipezap=True)
+
+    with patched_db() as session:
+        repo = ListingRepository(session)
+        assert repo.get_all_ids() == {"2900855395"}
+        listing = session.get(Listing, "2900855395")
+        assert listing is not None
+        assert listing.preco is not None
+        assert listing.preco > 1000000.0
+        history = repo.get_price_history("2900855395")
+        assert len(history) == 1
+        assert history[0].fonte == "fipezap_index"
+
+
+def test_run_fipezap_update_adjusts_stored_listings(patched_db):
+    """Valida a atualização direta pelo índice FipeZAP nos imóveis já persistidos."""
+    with patched_db() as session:
+        ListingRepository(session).add_many([make_record("1", preco=500000.0)])
+
+    updated = daily_scrape.run_fipezap_update(custom_rate_pct=1.0)
+    assert updated == 1
+
+    with patched_db() as session:
+        repo = ListingRepository(session)
+        history = repo.get_price_history("1")
+        assert [h.preco for h in history] == [500000.0, 505000.0]
 
 
 def test_load_csv_inserts_in_chunks(tmp_path: Path, patched_db):

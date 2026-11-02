@@ -10,7 +10,7 @@ tasks:
       - task --list
 
   daily:
-    desc: "Executa a coleta diária incremental com deduplicação e gravação no banco"
+    desc: "Executa a coleta diária incremental com fallback local, deduplicação e gravação no banco"
     cmds:
       - uv run python main.py daily-scrape --concurrency ${CONCURRENCY:-1} --max-pages ${MAX_PAGES:-10}
 
@@ -24,8 +24,18 @@ tasks:
     cmds:
       - uv run python main.py scrape-async --concurrency ${CONCURRENCY:-1}
 
+  scrape-scrapy:
+    desc: "Executa a coleta via Scrapy obedecendo robots.txt e retomada por partição"
+    cmds:
+      - uv run python main.py scrape-scrapy --max-pages ${MAX_PAGES:-10}
+
+  apply-index:
+    desc: "Aplica o índice público FipeZAP Goiânia aos imóveis no banco e registra histórico de preços"
+    cmds:
+      - uv run python main.py apply-index
+
   deduplicate:
-    desc: "Remove anúncios duplicados do mesmo imóvel físico no dataset bruto"
+    desc: "Remove anúncios duplicados por ID, URL e assinatura do imóvel físico no dataset bruto"
     cmds:
       - uv run python main.py deduplicate
 

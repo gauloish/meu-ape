@@ -1,7 +1,7 @@
 """Asynchronous Zap Imóveis scraper orchestration module.
 
 Drives asynchronous page gathering over partitioned search spaces using asyncio and
-curl_cffi AsyncSession, delegating parsing to zap_parser and storage to CheckpointStore.
+AsyncHttpClient, delegating parsing to zap_parser and storage/resumption to CheckpointStore.
 """
 
 import asyncio
@@ -26,7 +26,7 @@ from src.scraping.config import (
     PROPERTY_CATEGORIES,
 )
 from src.scraping.http_client import AsyncHttpClient
-from src.scraping.zap_parser import parse_item
+from src.scraping.zap_parser import normalize_url, parse_item
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,13 @@ def build_search_url(
     if price_max is not None:
         params.append(f"preco-ate={price_max}")
     return f"{BASE_URL}/{path.strip('/')}/?{'&'.join(params)}"
+
+
+def make_partition_key(
+    search_path: str, price_min: int | None, price_max: int | None
+) -> str:
+    """Construct a deterministic key identifying a category and price partition."""
+    return f"{search_path.strip('/')}:{price_min}:{price_max}"
 
 
 def extract_listings_from_html(html: str) -> list[dict]:
@@ -119,8 +126,11 @@ async def scrape_partition(
     price_max: int | None,
     known_ids: set[str] | None = None,
     max_pages: int = MAX_PAGES_PER_PARTITION,
+    known_urls: set[str] | None = None,
 ) -> None:
     """Asynchronously scrape pagination for a single category and price range partition.
+
+    Supports resuming from the last processed page recorded in ``store``.
 
     Args:
         client: Asynchronous HTTP client instance.
@@ -132,30 +142,53 @@ async def scrape_partition(
         known_ids: Set of listing IDs already in the database. When set, stops pagination
                    if all listings on a page are already known.
         max_pages: Upper limit of pages to scrape per partition.
+        known_urls: Set of normalised listing URLs already in the database.
     """
     label = search_path.split("/")[-1]
+    partition_key = make_partition_key(search_path, price_min, price_max)
 
-    for page in range(1, max_pages + 1):
+    if store.is_partition_completed(partition_key):
+        logger.debug(
+            "[%s] Partition %s already completed — skipping.", label, partition_key
+        )
+        return
+
+    start_page = store.get_resume_page(partition_key)
+
+    for page in range(start_page, max_pages + 1):
         url = build_search_url(search_path, page, price_min, price_max)
         html = await client.get(url, label=label)
         listings = extract_listings_from_html(html)
 
         if not listings:
+            async with lock:
+                store.record_progress(partition_key, page, completed=True)
             break
 
-        if known_ids:
+        if known_ids or known_urls:
             page_ids = {str(item.get("id")) for item in listings if item.get("id")}
-            new_on_page = page_ids - known_ids
-            if not new_on_page and page > 1:
+            page_urls = {
+                norm
+                for item in listings
+                if item.get("url") and (norm := normalize_url(str(item.get("url"))))
+            }
+            new_ids = page_ids - (known_ids or set())
+            new_urls = page_urls - (known_urls or set())
+            all_ids_known = bool(known_ids) and not new_ids
+            all_urls_known = bool(known_urls) and bool(page_urls) and not new_urls
+            if (all_ids_known or all_urls_known) and page > 1:
                 logger.info(
                     "[%s] Page %d: all listings already in DB — stopping partition.",
                     label,
                     page,
                 )
+                async with lock:
+                    store.record_progress(partition_key, page, completed=True)
                 break
 
         async with lock:
             new_count = store.add_many(listings)
+            store.record_progress(partition_key, page, completed=(page >= max_pages))
             if store.buffer_full:
                 await store.flush_async(force=True)
 
@@ -184,6 +217,7 @@ async def scrape_full_async(
     concurrency: int = DEFAULT_CONCURRENCY,
     known_ids: set[str] | None = None,
     max_pages: int = MAX_PAGES_PER_PARTITION,
+    known_urls: set[str] | None = None,
 ) -> Path:
     """Execute asynchronous extraction across all property categories and price partitions.
 
@@ -193,6 +227,7 @@ async def scrape_full_async(
         concurrency: Semaphore concurrency limit.
         known_ids: Pre-loaded set of existing listing IDs for early termination.
         max_pages: Page limit per partition (default 50).
+        known_urls: Pre-loaded set of existing normalised listing URLs.
 
     Returns:
         Path to the output CSV file.
@@ -226,10 +261,18 @@ async def scrape_full_async(
                 price_max=p_max,
                 known_ids=known_ids,
                 max_pages=max_pages,
+                known_urls=known_urls,
             )
             for path, p_min, p_max in partitions
         ]
         await tqdm_asyncio.gather(*tasks, desc="Async Progress")
+
+        if client.blocked_count > 0 or client.rate_limited_count > 0:
+            logger.warning(
+                "Scraper encountered edge blocks during run: %d HTTP 403 responses, %d HTTP 429 responses.",
+                client.blocked_count,
+                client.rate_limited_count,
+            )
 
     await store.flush_async(force=True)
     logger.info(

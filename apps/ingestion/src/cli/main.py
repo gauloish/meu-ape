@@ -1,12 +1,15 @@
 """Command-line interface module for the meu-ape data pipeline.
 
-Provides subcommands for synchronous extraction, asynchronous extraction, dataset
-deduplication, and catalog coverage validation.
+Provides subcommands for synchronous extraction, asynchronous extraction, Scrapy
+extraction, dataset deduplication, FipeZAP price index adjustment, and catalog
+coverage validation.
 """
 
 import argparse
 import asyncio
 import logging
+from pathlib import Path
+from typing import Any
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -42,10 +45,20 @@ def cmd_scrape_async(args: argparse.Namespace) -> None:
     print(f"Async extraction completed. Dataset saved to: {output.resolve()}")
 
 
-def cmd_deduplicate(args: argparse.Namespace) -> None:
-    """Execute physical asset deduplication."""
-    from pathlib import Path
+def cmd_scrape_scrapy(args: argparse.Namespace) -> None:
+    """Execute Scrapy spider extraction."""
+    from src.scraping.scrapy_spider import run_scrapy_extraction
 
+    output = run_scrapy_extraction(
+        city_slug=args.city,
+        output_filename=args.output,
+        max_pages=args.max_pages,
+    )
+    print(f"Scrapy extraction completed. Dataset saved to: {output.resolve()}")
+
+
+def cmd_deduplicate(args: argparse.Namespace) -> None:
+    """Execute physical, URL, and ID asset deduplication."""
     from src.data.deduplicator import deduplicate_dataset
 
     output = deduplicate_dataset(
@@ -56,21 +69,42 @@ def cmd_deduplicate(args: argparse.Namespace) -> None:
 
 
 def cmd_daily_scrape(args: argparse.Namespace) -> None:
-    """Execute end-to-end daily scrape, deduplication, and DB sync."""
+    """Execute end-to-end daily scrape, deduplication, fallback, and DB sync."""
     from src.pipeline.daily_scrape import run_daily_pipeline
 
-    run_daily_pipeline(
-        city_slug=args.city,
-        concurrency=args.concurrency,
-        max_pages=args.max_pages,
+    kwargs: dict[str, Any] = {
+        "city_slug": args.city,
+        "concurrency": args.concurrency,
+        "max_pages": args.max_pages,
+        "dry_run": args.dry_run,
+    }
+    if getattr(args, "fallback_csv", None) is not None:
+        kwargs["fallback_csv"] = Path(args.fallback_csv)
+    if getattr(args, "apply_fipezap", False):
+        kwargs["apply_fipezap"] = True
+
+    run_daily_pipeline(**kwargs)
+
+
+def cmd_apply_index(args: argparse.Namespace) -> None:
+    """Apply FipeZAP Goiânia index adjustment to database listings and record price history."""
+    from src.pipeline.daily_scrape import run_fipezap_update
+
+    months = (
+        [m.strip() for m in args.months.split(",") if m.strip()]
+        if args.months
+        else None
+    )
+    updated = run_fipezap_update(
+        months=months,
+        custom_rate_pct=args.rate,
         dry_run=args.dry_run,
     )
+    print(f"FipeZAP price adjustment finished. Listings updated: {updated}")
 
 
 def cmd_load_csv(args: argparse.Namespace) -> None:
     """Execute bulk CSV dataset load into database."""
-    from pathlib import Path
-
     from src.pipeline.load_csv import load_csv_to_db
 
     load_csv_to_db(csv_file=Path(args.input), chunk_size=args.chunk_size)
@@ -91,7 +125,7 @@ def build_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(
         prog="meu-ape",
-        description="Real estate data extraction and processing pipeline for Zap Imóveis.",
+        description="Real estate data extraction and processing pipeline for Goiânia.",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Enable verbose debug logging"
@@ -129,9 +163,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_scrape.set_defaults(func=cmd_scrape)
 
-    p_async = sub.add_parser(
-        "scrape-async", help="Execute high-speed asynchronous extraction"
-    )
+    p_async = sub.add_parser("scrape-async", help="Execute asynchronous extraction")
     p_async.add_argument(
         "--city", default="go+goiania", metavar="SLUG", help="City and state slug"
     )
@@ -150,6 +182,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_async.set_defaults(func=cmd_scrape_async)
 
+    p_scrapy = sub.add_parser(
+        "scrape-scrapy", help="Execute Scrapy spider extraction obeying robots.txt"
+    )
+    p_scrapy.add_argument(
+        "--city", default="go+goiania", metavar="SLUG", help="City and state slug"
+    )
+    p_scrapy.add_argument(
+        "--output",
+        default="zap_dataset.csv",
+        metavar="FILENAME",
+        help="Output filename",
+    )
+    p_scrapy.add_argument(
+        "--max-pages",
+        type=int,
+        default=10,
+        metavar="N",
+        help="Max pages per partition",
+    )
+    p_scrapy.set_defaults(func=cmd_scrape_scrapy)
+
     p_daily = sub.add_parser(
         "daily-scrape", help="Execute daily scrape, deduplication, and database upload"
     )
@@ -165,7 +218,40 @@ def build_parser() -> argparse.ArgumentParser:
     p_daily.add_argument(
         "--dry-run", action="store_true", help="Skip writing to database"
     )
+    p_daily.add_argument(
+        "--fallback-csv",
+        default=None,
+        metavar="PATH",
+        help="Fallback CSV path when live scraping is blocked",
+    )
+    p_daily.add_argument(
+        "--apply-fipezap",
+        action="store_true",
+        help="Apply FipeZAP Goiânia price adjustment factor",
+    )
     p_daily.set_defaults(func=cmd_daily_scrape)
+
+    p_index = sub.add_parser(
+        "apply-index",
+        help="Apply public FipeZAP Goiânia price index to stored listings",
+    )
+    p_index.add_argument(
+        "--months",
+        default=None,
+        metavar="YYYY-MM,...",
+        help="Comma-separated reference months from FipeZAP Goiânia series",
+    )
+    p_index.add_argument(
+        "--rate",
+        type=float,
+        default=None,
+        metavar="PCT",
+        help="Explicit percentage adjustment (e.g. 0.83 for +0.83%%)",
+    )
+    p_index.add_argument(
+        "--dry-run", action="store_true", help="Compute factor without writing to DB"
+    )
+    p_index.set_defaults(func=cmd_apply_index)
 
     p_load = sub.add_parser(
         "load-csv", help="Bulk load existing CSV dataset into database"
@@ -186,9 +272,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_load.set_defaults(func=cmd_load_csv)
 
     p_dedup = sub.add_parser(
-        "deduplicate", help="Remove physical duplicate listings from raw dataset"
+        "deduplicate", help="Remove physical, URL, and ID duplicate listings"
     )
-
     p_dedup.add_argument(
         "--input",
         default="data/raw/zap_dataset.csv",
@@ -201,7 +286,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="Processed output CSV path",
     )
-    p_dedup.set_defaults(func=cmd_deduplicate)
+    p_dedup.set_defaults(func=cmd_dedup_alias)
 
     p_val = sub.add_parser(
         "validate",
@@ -210,6 +295,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_val.set_defaults(func=cmd_validate)
 
     return parser
+
+
+def cmd_dedup_alias(args: argparse.Namespace) -> None:
+    """Alias wrapper for cmd_deduplicate."""
+    cmd_deduplicate(args)
 
 
 def main(argv=None) -> None:

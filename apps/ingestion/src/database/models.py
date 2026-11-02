@@ -1,22 +1,23 @@
 """SQLAlchemy ORM models for the meu-ape database schema.
 
 Models:
-    Listing: A real-estate property listing scraped from Zap Imóveis.
+    Listing: A real-estate property listing in Goiânia.
+    ListingPriceHistory: Chronological price observation history for a property listing.
 """
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.base import Base
 
 
 class Listing(Base):
-    """A real-estate property listing scraped from Zap Imóveis.
+    """A real-estate property listing stored in PostgreSQL.
 
-    The ``listing_id`` is the canonical Zap identifier used as primary key.
-    Uniqueness is enforced at the DB level, so upserts simply ignore conflicts.
+    The ``listing_id`` is the canonical identifier used as primary key.
+    Uniqueness is enforced by ``listing_id`` and canonical ``url`` at repository level.
     """
 
     __tablename__ = "listings"
@@ -47,3 +48,31 @@ class Listing(Base):
 
     def __repr__(self) -> str:
         return f"Listing(id={self.listing_id!r}, tipo={self.tipo_imovel!r}, preco={self.preco})"
+
+
+class ListingPriceHistory(Base):
+    """Chronological price and condominium fee record for a property listing."""
+
+    __tablename__ = "listing_price_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    listing_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("listings.listing_id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    url: Mapped[str | None] = mapped_column(Text)
+    preco: Mapped[float] = mapped_column(Float, nullable=False)
+    condominio: Mapped[float | None] = mapped_column(Float)
+    moeda: Mapped[str | None] = mapped_column(String(10), default="BRL")
+    fonte: Mapped[str | None] = mapped_column(String(50), default="zap_scrape")
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"ListingPriceHistory(listing_id={self.listing_id!r}, "
+            f"preco={self.preco}, fonte={self.fonte!r})"
+        )

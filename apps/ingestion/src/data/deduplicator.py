@@ -1,7 +1,7 @@
-"""Physical property deduplication module.
+"""Physical, URL, and identifier property deduplication module.
 
-Identifies listings published by different agencies that refer to the same physical
-real estate asset, keeping the listing record with the highest data completeness.
+Identifies duplicate listings by canonical listing ID, normalised URL, and physical
+real estate asset signature, keeping the listing record with the highest data completeness.
 """
 
 import logging
@@ -9,12 +9,16 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.scraping.zap_parser import extract_id_from_url, normalize_url
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_INPUT = Path("data/raw/zap_dataset.csv")
 DEFAULT_OUTPUT = Path("data/processed/zap_dataset_deduplicated.csv")
 
 _TEMP_COLUMNS = [
+    "id_norm",
+    "url_norm",
     "bairro_norm",
     "rua_norm",
     "area_round",
@@ -68,8 +72,27 @@ def _make_physical_signature(row: pd.Series) -> str:
 
 
 def _enrich_with_signature(df: pd.DataFrame) -> pd.DataFrame:
-    """Add normalised attribute columns and canonical property signatures."""
+    """Add normalised ID, URL, attribute columns, and canonical property signatures."""
     df = df.copy()
+    if "url" in df.columns:
+        df["url_norm"] = df["url"].apply(
+            lambda u: normalize_url(str(u)) if pd.notnull(u) else None
+        )
+    else:
+        df["url_norm"] = None
+
+    if "id" in df.columns:
+        df["id_norm"] = df.apply(
+            lambda r: (
+                str(r["id"]).strip()
+                if pd.notnull(r["id"]) and str(r["id"]).strip()
+                else extract_id_from_url(r.get("url_norm"))
+            ),
+            axis=1,
+        )
+    else:
+        df["id_norm"] = df["url_norm"].apply(extract_id_from_url)
+
     df["bairro_norm"] = _normalise_text(df["bairro"])
     df["rua_norm"] = _normalise_text(df["rua"])
     df["area_round"] = pd.to_numeric(df["area_m2"], errors="coerce").round(0)
@@ -103,11 +126,19 @@ def _score_richness(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _drop_non_null_duplicates(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    """Drop duplicate rows on a column only where the column is non-null."""
+    has_val = df[column].notnull() & (df[column].astype(str) != "")
+    with_val = df[has_val].drop_duplicates(subset=[column], keep="first")
+    without_val = df[~has_val]
+    return pd.concat([with_val, without_val], ignore_index=False)
+
+
 def deduplicate_dataset(
     input_file: Path = DEFAULT_INPUT,
     output_file: Path = DEFAULT_OUTPUT,
 ) -> Path:
-    """Filter physical duplicate listings and write the deduplicated dataset.
+    """Filter ID, URL, and physical duplicate listings and write the deduplicated dataset.
 
     Args:
         input_file: Source raw CSV dataset path.
@@ -135,7 +166,10 @@ def deduplicate_dataset(
         by=["has_rua", "has_bairro", "foto_count", "desc_len"],
         ascending=[False, False, False, False],
     )
-    df_clean = df_sorted.drop_duplicates(
+
+    df_dedup_id = _drop_non_null_duplicates(df_sorted, "id_norm")
+    df_dedup_url = _drop_non_null_duplicates(df_dedup_id, "url_norm")
+    df_clean = df_dedup_url.drop_duplicates(
         subset=["property_signature"], keep="first"
     ).copy()
     df_clean = df_clean.drop(columns=_TEMP_COLUMNS)

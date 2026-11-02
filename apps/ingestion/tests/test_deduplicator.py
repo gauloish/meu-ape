@@ -1,4 +1,4 @@
-"""Suíte de testes unitários para a deduplicação de imóveis físicos."""
+"""Suíte de testes unitários para a deduplicação de imóveis por ID, URL e assinatura física."""
 
 from pathlib import Path
 
@@ -30,6 +30,35 @@ def test_keeps_richest_listing_of_same_property(tmp_path: Path):
     df = pd.read_csv(output)
 
     assert sorted(df["id"].tolist()) == [2, 3]
+
+
+def test_deduplicates_by_canonical_url_and_id(tmp_path: Path):
+    """Valida que anúncios com mesma URL canônica ou mesmo ID são deduplicados mantendo o mais rico."""
+    raw = _write_csv(
+        tmp_path / "raw.csv",
+        [
+            make_record(
+                "10",
+                url="https://www.zapimoveis.com.br/imovel/apto-10/?utm=1",
+                rua="Rua A",
+                preco=500000.0,
+                descricao_completa="curta",
+            ),
+            make_record(
+                "20",
+                url="https://www.zapimoveis.com.br/imovel/apto-10",
+                rua="Rua B",
+                preco=520000.0,
+                descricao_completa="descrição completa com mais detalhes",
+            ),
+        ],
+    )
+
+    output = deduplicate_dataset(raw, tmp_path / "dedup_url.csv")
+    df = pd.read_csv(output)
+
+    assert len(df) == 1
+    assert df.iloc[0]["id"] == 20
 
 
 def test_falls_back_to_neighbourhood_signature_without_street(tmp_path: Path):

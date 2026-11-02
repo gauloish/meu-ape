@@ -50,9 +50,9 @@ CATEGORIES: list[tuple[str, str]] = [
 
 
 def _build_session():
-    """Build a curl_cffi or standard requests session."""
+    """Build a curl_cffi or standard requests session without fingerprint spoofing."""
     if HAS_CURL_CFFI:
-        return cffi_requests.Session(impersonate="chrome124")
+        return cffi_requests.Session(headers=HEADERS)
     return requests.Session()
 
 

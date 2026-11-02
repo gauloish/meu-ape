@@ -1,24 +1,15 @@
-"""Centralised configuration for the Zap Imóveis scraping pipeline."""
+"""Centralised configuration for the Zap Imóveis scraping and ingestion pipeline."""
 
 BASE_URL = "https://www.zapimoveis.com.br"
 
 USER_AGENTS: list[str] = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (compatible; MeuApeResearchBot/1.0; +https://github.com/meu-ape)",
 ]
 
 DEFAULT_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-    "Sec-Ch-Ua-Mobile": "?0",
-    "Sec-Ch-Ua-Platform": '"Windows"',
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "cross-site",
-    "Sec-Fetch-User": "?1",
-    "Upgrade-Insecure-Requests": "1",
+    "User-Agent": USER_AGENTS[0],
 }
 
 PROPERTY_CATEGORIES: list[str] = [
@@ -70,6 +61,7 @@ PRICE_RANGES: list[PriceRange] = [
     (1_500_000, 1_700_000),
     (1_700_000, 2_000_000),
     (2_000_000, 2_400_000),
+    (2_400_000, 2_800_000),
     (2_800_000, 3_300_000),
     (3_300_000, 4_000_000),
     (4_000_000, 5_000_000),
